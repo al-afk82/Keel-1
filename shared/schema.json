@@ -1,0 +1,80 @@
+{
+  "verdict": {
+    "description": "Returned by every specialist agent",
+    "fields": {
+      "agent": "string — agent name",
+      "status": "string — clean | violation | aligned | misaligned | logged | profiled | gap-found | no-gap | question-ready",
+      "rule": "string | null — rule ID and name if violated",
+      "excerpt": "string | null — exact offending text if violated",
+      "severity": "string | null — high | medium | low"
+    }
+  },
+  "human_log": {
+    "description": "Returned by Agent 01",
+    "fields": {
+      "agent": "human-logger",
+      "status": "logged",
+      "input": "string — verbatim human message",
+      "timestamp": "string — ISO 8601"
+    }
+  },
+  "thinking_log": {
+    "description": "Returned by Agent 02",
+    "fields": {
+      "agent": "thinking-logger",
+      "status": "logged",
+      "thinking": "string — verbatim engine thinking blocks",
+      "timestamp": "string — ISO 8601"
+    }
+  },
+  "profile": {
+    "description": "Returned by Agent 03 and Agent 04",
+    "fields": {
+      "agent": "string — human-profiler or engine-profiler",
+      "status": "profiled",
+      "id": "string — conversation-scoped identifier",
+      "role": "string — role in this conversation",
+      "scope": "string — what this party is trying to achieve"
+    }
+  },
+  "alignment": {
+    "description": "Returned by Agent 05",
+    "fields": {
+      "agent": "alignment-checker",
+      "status": "string — aligned | misaligned",
+      "reason": "string | null — why misaligned, null if aligned"
+    }
+  },
+  "question": {
+    "description": "Returned by Agent 06",
+    "fields": {
+      "agent": "question-generator",
+      "status": "question-ready",
+      "question": "string — one question for the human"
+    }
+  },
+  "gap": {
+    "description": "Returned by Agent 07",
+    "fields": {
+      "agent": "gap-analyzer",
+      "status": "string — gap-found | no-gap",
+      "gap": "string | null — description of the gap, null if none"
+    }
+  },
+  "harness_entry": {
+    "description": "Written by Agent 10 to the harness",
+    "fields": {
+      "entry_id": "string — unique identifier",
+      "timestamp": "string — ISO 8601",
+      "human_input": "string — verbatim",
+      "engine_thinking": "string — verbatim",
+      "human_profile": "object — profile schema",
+      "engine_profile": "object — profile schema",
+      "alignment": "object — alignment schema",
+      "gap": "object — gap schema",
+      "constraints_verdict": "object — verdict schema",
+      "antipatterns_verdict": "object — verdict schema",
+      "final_output": "string — what was delivered to the human"
+    }
+  }
+}
