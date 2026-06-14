@@ -1,0 +1,81 @@
+import asyncio
+import logging
+import os
+from dotenv import load_dotenv
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import SystemMessage
+from langgraph.graph import StateGraph, MessagesState, END
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.prebuilt import ToolNode
+from band import Agent
+from band.adapters.langgraph import LangGraphAdapter
+from band.config import load_agent_config
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+SYSTEM_PROMPT = """You are the question generator. Your only job is to generate exactly one question that resolves the alignment gap described to you.
+
+When you receive a message, it will contain a misalignment reason and any previous questions already asked. Use band_send_message to return this exact JSON. No other text. No explanation.
+
+{
+  "agent": "question-generator",
+  "status": "question-ready",
+  "question": "one specific question addressed to the human"
+}
+
+The question must be answerable in one sentence. It must be specific to the misalignment reason. It must not ask for information already provided. It must not repeat a question already asked. If the human answers it, the alignment checker should return aligned on the next pass.
+
+One question. Nothing else."""
+
+
+def make_graph(band_tools: list) -> object:
+    llm = ChatAnthropic(
+        model="claude-sonnet-4-6",
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    )
+    llm_with_tools = llm.bind_tools(band_tools)
+
+    def call_model(state: MessagesState) -> dict:
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+        response = llm_with_tools.invoke(messages)
+        return {"messages": [response]}
+
+    def should_continue(state: MessagesState) -> str:
+        last = state["messages"][-1]
+        if hasattr(last, "tool_calls") and last.tool_calls:
+            return "tools"
+        return END
+
+    graph = StateGraph(MessagesState)
+    graph.add_node("agent", call_model)
+    graph.add_node("tools", ToolNode(band_tools))
+    graph.set_entry_point("agent")
+    graph.add_conditional_edges("agent", should_continue, ["tools", END])
+    graph.add_edge("tools", "agent")
+
+    return graph.compile(checkpointer=InMemorySaver())
+
+
+async def main():
+    load_dotenv()
+
+    agent_id, api_key = load_agent_config("question_generator")
+
+    adapter = LangGraphAdapter(
+        graph_factory=make_graph,
+        inject_system_prompt=False,
+    )
+
+    agent = Agent.create(
+        adapter=adapter,
+        agent_id=agent_id,
+        api_key=api_key,
+    )
+
+    logger.info("Question generator running. Press Ctrl+C to stop.")
+    await agent.run()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

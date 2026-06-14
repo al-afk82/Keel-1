@@ -1,0 +1,84 @@
+import asyncio
+import logging
+import os
+from dotenv import load_dotenv
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import SystemMessage
+from langgraph.graph import StateGraph, MessagesState, END
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.prebuilt import ToolNode
+from band import Agent
+from band.adapters.langgraph import LangGraphAdapter
+from band.config import load_agent_config
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+SYSTEM_PROMPT = """You are the engine profiler. Your only job is to read the engine's thinking and define the role and scope the engine assumed in this conversation.
+
+When you receive a message, treat it as the engine's internal thinking to profile. Use band_send_message to return this exact JSON. No other text. No explanation.
+
+{
+  "agent": "engine-profiler",
+  "status": "profiled",
+  "id": "engine",
+  "role": "the role the engine assumed in its reasoning",
+  "scope": "what the engine believed it was trying to achieve"
+}
+
+Role is the hat the engine put on — did it respond as a teacher, an assistant, a technical expert, a generalist? Infer from the reasoning.
+Scope is what the engine was optimising for in this response — what outcome did it think it was producing?
+
+Be specific. Nothing else."""
+
+
+def make_graph(band_tools: list) -> object:
+    llm = ChatAnthropic(
+        model="claude-sonnet-4-6",
+        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    )
+    llm_with_tools = llm.bind_tools(band_tools)
+
+    def call_model(state: MessagesState) -> dict:
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+        response = llm_with_tools.invoke(messages)
+        return {"messages": [response]}
+
+    def should_continue(state: MessagesState) -> str:
+        last = state["messages"][-1]
+        if hasattr(last, "tool_calls") and last.tool_calls:
+            return "tools"
+        return END
+
+    graph = StateGraph(MessagesState)
+    graph.add_node("agent", call_model)
+    graph.add_node("tools", ToolNode(band_tools))
+    graph.set_entry_point("agent")
+    graph.add_conditional_edges("agent", should_continue, ["tools", END])
+    graph.add_edge("tools", "agent")
+
+    return graph.compile(checkpointer=InMemorySaver())
+
+
+async def main():
+    load_dotenv()
+
+    agent_id, api_key = load_agent_config("engine_profiler")
+
+    adapter = LangGraphAdapter(
+        graph_factory=make_graph,
+        inject_system_prompt=False,
+    )
+
+    agent = Agent.create(
+        adapter=adapter,
+        agent_id=agent_id,
+        api_key=api_key,
+    )
+
+    logger.info("Engine profiler running. Press Ctrl+C to stop.")
+    await agent.run()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
