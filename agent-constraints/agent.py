@@ -92,7 +92,7 @@ def make_graph(band_tools: list) -> object:
 
 
 async def main():
-    load_dotenv(override=True)
+    load_dotenv()
 
     agent_id, api_key = load_agent_config("constraints_agent")
 
