@@ -82,7 +82,7 @@ def make_graph(band_tools: list) -> object:
 
 
 async def main():
-    load_dotenv()
+    load_dotenv(override=True)
 
     agent_id, api_key = load_agent_config("alignment_checker")
 
