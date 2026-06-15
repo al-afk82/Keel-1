@@ -1,2 +1,7 @@
 .env
 agent_config.yaml
+
+# Python / uv
+__pycache__/
+*.pyc
+.venv/
