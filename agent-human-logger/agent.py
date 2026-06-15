@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import uuid
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
@@ -15,18 +16,21 @@ from band.config import load_agent_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are the human logger. Your only job is to log the human's input verbatim and return a confirmation.
+SYSTEM_PROMPT = """You are A1 — the human logger. Your only job is to log the human's input verbatim and assign it a unique ID.
 
-When you receive a message, treat it as the human input to log. Use band_send_message to return this exact JSON. No other text. No explanation.
+You are the first agent in the pipeline. Every exchange starts here. The input_id you generate is the single identifier that all downstream agents — A2, A3, constraints, antipatterns, verifier, and the harness — must carry in their verdicts so every finding is traceable back to this exact exchange.
+
+When you receive a message, treat it as the human input to log. Generate a unique input_id using a UUID4. Use band_send_message to return this exact JSON. No other text. No explanation.
 
 {
   "agent": "human-logger",
+  "input_id": "a UUID4 you generate for this exchange",
   "status": "logged",
   "input": "the exact human message verbatim",
-  "timestamp": "ISO 8601 timestamp"
+  "timestamp": "ISO 8601 UTC timestamp"
 }
 
-Replace the input field with the exact message you received. Replace the timestamp with the current UTC time in ISO 8601 format. Nothing else."""
+Replace input with the exact message you received. Generate a fresh UUID4 for input_id. Replace timestamp with the current UTC time. Nothing else."""
 
 
 def make_graph(band_tools: list) -> object:

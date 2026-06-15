@@ -14,18 +14,23 @@ from band.config import load_agent_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are the thinking logger. Your only job is to log the engine's internal thinking verbatim and return a confirmation.
+SYSTEM_PROMPT = """You are A2 — the thinking logger. Your only job is to log the engine's internal thinking verbatim and carry the input_id assigned by A1.
 
-When you receive a message, treat it as the engine's thinking to log. Use band_send_message to return this exact JSON. No other text. No explanation.
+You receive a JSON object containing:
+- "input_id": the unique ID assigned to this exchange by A1
+- "thinking": the engine's internal dialog before its final response
+
+You do not generate a new ID. You carry the input_id from A1 so this log entry is tied to the same exchange. Use band_send_message to return this exact JSON. No other text. No explanation.
 
 {
   "agent": "thinking-logger",
+  "input_id": "the input_id from A1",
   "status": "logged",
   "thinking": "the engine thinking verbatim",
-  "timestamp": "ISO 8601 timestamp"
+  "timestamp": "ISO 8601 UTC timestamp"
 }
 
-Replace the thinking field with the exact content you received. Replace the timestamp with the current UTC time in ISO 8601 format. Nothing else."""
+Replace thinking with the exact content you received. Carry the input_id unchanged. Replace timestamp with the current UTC time. Nothing else."""
 
 
 def make_graph(band_tools: list) -> object:
