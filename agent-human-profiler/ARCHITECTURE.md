@@ -2,30 +2,28 @@
 
 ## What it does
 
-Builds a model of the human based on their input patterns. Communication style, vocabulary, level of technical knowledge, implied goals, recurring concerns. Updated on every turn.
+Reads the human's verbatim input and defines the role and scope they are operating in for this specific conversation. Role and scope are conversation-scoped — the same person asking a different question is in a different role.
 
 ## Why it exists
 
-The engine cannot stay aligned with a human it does not understand. The human profiler gives the system a stable picture of who the user is so every other agent can calibrate against it. A constraint violation means something different for a technical expert than for a first-time user.
+The alignment checker (Agent 05) needs a clear definition of both parties before it can compare them. This agent produces the human half of that comparison. Without a defined human role and scope, alignment is a guess.
 
 ## Input
 
-The human's current message plus any prior context passed in by the coordinator.
+The human's verbatim input, forwarded from Agent 01 (Human Logger) by the coordinator.
 
 ## Output
 
 ```json
 {
   "agent": "human-profiler",
-  "status": "logged",
-  "profile": {
-    "communication_style": "...",
-    "technical_level": "...",
-    "implied_goal": "..."
-  }
+  "status": "profiled",
+  "id": "human",
+  "role": "the role the human is operating in for this request",
+  "scope": "what the human is trying to achieve in this conversation"
 }
 ```
 
 ## Position in the system
 
-Runs in parallel. Its output informs the alignment checker and the coordinator's final decision on how to frame a corrected response.
+Runs in parallel with Agent 04 (Engine Profiler), after the loggers and before the alignment check. Its output is one of the two inputs to Agent 05.
