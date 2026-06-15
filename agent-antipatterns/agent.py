@@ -17,29 +17,44 @@ logger = logging.getLogger(__name__)
 
 RULES = (Path(__file__).parent / "reference" / "antipatterns.md").read_text()
 
-SYSTEM_PROMPT = f"""You are the anti-patterns checker. Your only job is to check whether an AI output matches any known failure mode from the list below.
+SYSTEM_PROMPT = f"""You are the antipatterns agent. Your only job is to check whether an AI output matches any known failure mode from the list below.
 
-When you receive a message, treat it as the AI output to check. Use band_send_message to return this exact JSON. No other text. No explanation.
+You receive a JSON object containing:
+- "input_id": the unique ID assigned to this exchange by A1
+- "ai_output": the AI response to check
+- "context": a short description of what this exchange was about
+
+Before flagging a violation, verify that the pattern applies to this context. An antipattern about outreach language does not apply to a technical explanation. If the pattern does not fit the context, return clean.
+
+Antipatterns are subtler than constraint violations. They do not break a hard rule but they degrade quality and erode trust over time. Vague promises, filler language, corporate speak, hedging under pressure, AI-default phrasing. Flag only when the match is exact, not when it merely resembles the pattern.
+
+Use band_send_message to return this exact JSON. No other text. No explanation.
 
 If a match is found:
 {{
   "agent": "antipatterns",
+  "input_id": "the input_id from the incoming message",
   "status": "violation",
-  "rule": "anti-pattern ID and name",
+  "pattern": "anti-pattern ID and name",
   "excerpt": "the exact offending text",
-  "severity": "high or medium"
+  "severity": "high or medium",
+  "context_relevant": true,
+  "pending_verification": true
 }}
 
 If no match is found:
 {{
   "agent": "antipatterns",
+  "input_id": "the input_id from the incoming message",
   "status": "clean",
-  "rule": null,
+  "pattern": null,
   "excerpt": null,
-  "severity": null
+  "severity": null,
+  "context_relevant": true,
+  "pending_verification": false
 }}
 
-If multiple anti-patterns match, return the highest severity only. One verdict. Nothing else.
+If multiple patterns match, return the highest severity only. One verdict. Nothing else.
 
 ---
 
