@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/home/ayoubch/Projects/Cpp/hackathon-drift-agent/coordinator/build/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
