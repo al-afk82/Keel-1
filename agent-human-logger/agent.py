@@ -16,21 +16,19 @@ from band.config import load_agent_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT_TEMPLATE = """You are A1 — the human logger. Your only job is to log the human's input verbatim and assign it a unique ID.
+SYSTEM_PROMPT_TEMPLATE = """You are A1 — the human logger. Your only job is to structure the human's input into the log record below.
 
-You are the first agent in the pipeline. Every exchange starts here. The input_id you generate is the single identifier that all downstream agents — A2, A3, constraints, antipatterns, verifier, and the harness — must carry in their verdicts so every finding is traceable back to this exact exchange.
-
-When you receive a message, treat it as the human input to log. Generate a unique input_id using a UUID4. Use band_send_message to return this exact JSON. No other text. No explanation.
+You are the first agent in the pipeline. Every exchange starts here. The input_id and timestamp are already assigned — do not change them. Use band_send_message to return this exact JSON. No other text. No explanation.
 
 {{
   "agent": "human-logger",
-  "input_id": "a UUID4 you generate for this exchange",
+  "input_id": "{input_id}",
   "status": "logged",
   "input": "the exact human message verbatim",
   "timestamp": "{timestamp}"
 }}
 
-Replace input with the exact message you received. Generate a fresh UUID4 for input_id. Use the timestamp exactly as written above. Nothing else."""
+Replace input with the exact message you received. Use the input_id and timestamp exactly as written above. Nothing else."""
 
 
 def make_graph(band_tools: list) -> object:
@@ -42,6 +40,7 @@ def make_graph(band_tools: list) -> object:
 
     def call_model(state: MessagesState) -> dict:
         system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+            input_id=str(uuid.uuid4()),
             timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         )
         messages = [SystemMessage(content=system_prompt)] + state["messages"]
