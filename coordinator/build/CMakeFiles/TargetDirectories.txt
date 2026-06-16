@@ -1,0 +1,4 @@
+/home/ayoubch/Projects/Cpp/hackathon-drift-agent/coordinator/build/CMakeFiles/hackathon_drift_coordinator.dir
+/home/ayoubch/Projects/Cpp/hackathon-drift-agent/coordinator/build/CMakeFiles/mock_agent_server.dir
+/home/ayoubch/Projects/Cpp/hackathon-drift-agent/coordinator/build/CMakeFiles/edit_cache.dir
+/home/ayoubch/Projects/Cpp/hackathon-drift-agent/coordinator/build/CMakeFiles/rebuild_cache.dir
