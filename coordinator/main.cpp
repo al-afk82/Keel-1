@@ -301,15 +301,16 @@ void execute_drift_coordinator(const std::string &tracking_id,
     base_payload.voice_checker_extra_thinking = voice_v.excerpt.value();
   }
 
-  // collect confirmed findings for verifier gate, uncertain findings for harness only
+  // all non-clean findings go to harness; only confirmed violations go to verifier
+  std::vector<Verdict> all_findings;
   std::vector<Verdict> raw_auditor_findings;
-  std::vector<Verdict> uncertain_findings;
   for (auto *finding :
        {&gap_v, &constraint_v, &anti_v, &voice_v, &quality_v, &identity_v}) {
+    if (finding->status != "clean") {
+      all_findings.push_back(*finding);
+    }
     if (finding->status == "violation" || finding->status == "drifted") {
       raw_auditor_findings.push_back(*finding);
-    } else if (finding->status == "uncertain") {
-      uncertain_findings.push_back(*finding);
     }
   }
 
@@ -327,11 +328,10 @@ void execute_drift_coordinator(const std::string &tracking_id,
     }
   }
 
-  // update db state via harness — confirmed violations and uncertain signals both logged
+  // send all findings to harness — status field tells it how to log each one
   nlohmann::json database_transaction = {
       {"payload", base_payload},
-      {"violations", raw_auditor_findings},
-      {"uncertain", uncertain_findings}};
+      {"findings", all_findings}};
   async_fire_and_forget("13-harness-logger", database_transaction.dump());
 
   ingestion_group.wait(); // wrap up any dangling logging threads before closing out
