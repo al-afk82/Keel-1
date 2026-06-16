@@ -4,7 +4,9 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <random>
 #include <spdlog/spdlog.h>
+#include <sstream>
 #include <string>
 #include <tbb/parallel_invoke.h>
 #include <tbb/task_group.h>
@@ -12,6 +14,25 @@
 #include <vector>
 
 #include "types.hpp"
+
+std::string generate_uuid() {
+  thread_local std::mt19937 gen(std::random_device{}());
+  std::uniform_int_distribution<uint32_t> hex_dis(0, 15);
+  std::uniform_int_distribution<uint32_t> var_dis(8, 11);
+  std::ostringstream ss;
+  ss << std::hex;
+  for (int i = 0; i < 8; i++) ss << hex_dis(gen);
+  ss << "-";
+  for (int i = 0; i < 4; i++) ss << hex_dis(gen);
+  ss << "-4";
+  for (int i = 0; i < 3; i++) ss << hex_dis(gen);
+  ss << "-";
+  ss << var_dis(gen);
+  for (int i = 0; i < 3; i++) ss << hex_dis(gen);
+  ss << "-";
+  for (int i = 0; i < 12; i++) ss << hex_dis(gen);
+  return ss.str();
+}
 
 // split host and path prefix so drogon doesn't lose its mind over urls
 const std::string BAND_HOST = "http://127.0.0.1:5000";
@@ -316,19 +337,49 @@ void execute_drift_coordinator(const std::string &tracking_id,
 int main() {
   spdlog::set_pattern("%^[%T.%e] [THREAD %t] [%L] %v%$");
 
-  // spawn turn execution thread separately from drogon's web life cycle
-  std::thread test_worker([]() {
-    // bump sleep to 1.5s so mock server socket has enough time to bind
-    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+  // production entry point — receives human_msg and thinking_chain, fires pipeline
+  drogon::app().registerHandler(
+      "/coordinate",
+      [](const drogon::HttpRequestPtr &req,
+         std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
+        auto body =
+            nlohmann::json::parse(req->getBody(), nullptr, false);
 
+        if (body.is_discarded() || !body.contains("human_msg") ||
+            !body.contains("thinking_chain")) {
+          auto resp = drogon::HttpResponse::newHttpResponse();
+          resp->setStatusCode(drogon::k400BadRequest);
+          resp->setBody(R"({"error":"missing human_msg or thinking_chain"})");
+          callback(resp);
+          return;
+        }
+
+        std::string tracking_id = generate_uuid();
+        std::string human_msg = body["human_msg"].get<std::string>();
+        std::string thinking_chain = body["thinking_chain"].get<std::string>();
+
+        std::thread([tracking_id, human_msg, thinking_chain]() {
+          execute_drift_coordinator(tracking_id, human_msg, thinking_chain);
+        }).detach();
+
+        auto resp = drogon::HttpResponse::newHttpResponse();
+        resp->setStatusCode(drogon::k202Accepted);
+        resp->setContentTypeCode(drogon::CT_APPLICATION_JSON);
+        resp->setBody(nlohmann::json{{"tracking_id", tracking_id}}.dump());
+        callback(resp);
+      },
+      {drogon::Post});
+
+  // test worker — generates a fresh UUID each run
+  std::thread test_worker([]() {
+    std::this_thread::sleep_for(std::chrono::milliseconds(1500));
     spdlog::info("Worker thread triggering pipeline turn execution...");
-    execute_drift_coordinator("9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d", "Hello",
+    execute_drift_coordinator(generate_uuid(), "Hello",
                               "<thinking>None</thinking>");
   });
 
   test_worker.detach();
 
-  // hand control over to drogon event loops
   drogon::app().addListener("0.0.0.0", 8080).run();
   return 0;
 }
