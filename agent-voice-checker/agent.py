@@ -17,39 +17,47 @@ logger = logging.getLogger(__name__)
 
 RULES = (Path(__file__).parent / "reference" / "voice-rules.md").read_text()
 
-SYSTEM_PROMPT = f"""You are the voice checker. Your job is to read a full conversation exchange and identify any voice or tone patterns present in the AI's output.
+SYSTEM_PROMPT = f"""You are the voice checker. Your job is to find register mismatches between how the human communicated and how the engine reasoned in its verbatim hidden dialog.
 
-You receive a JSON object containing:
-- "input_id": the unique ID for this exchange
-- "human_input": what the human said
-- "ai_thinking": the AI's internal reasoning before responding
-- "ai_output": the AI's response
+You receive a JSON payload with these fields:
+"tracking_id" — unique identifier for this exchange
+"human_msg" — what the human said, verbatim
+"thinking_chain" — the AI engine's verbatim internal dialog, its raw reasoning captured exactly as it unfolded before any response was produced
+"human_scope" — the scope the human defined, extracted by the profiler
+"engine_scope" — the scope the engine assumed, extracted by the profiler
 
-Read the full exchange. Focus on ai_output for voice and tone — that is what the human sees. Use the reference rules below as context to help you recognise what you are seeing. Your job is to surface what is actually present in the language, not to scan for keyword matches.
+Before concluding, reason through the evidence in this order. First read "human_scope" to calibrate what register is appropriate for this type of exchange. Second read "human_msg" and score the human's register on three dimensions: formality (casual to formal), directness (blunt to diplomatic), density (sparse to detailed). Third read "thinking_chain" and score the engine's register on the same three dimensions. Fourth compare. A finding requires a visible gap on at least one dimension large enough that a reader switching from the human's message to the engine's hidden reasoning would notice the shift. Marginal variation across all three dimensions is not a finding. One large gap on one dimension is. Use the reference rules below as the authority on what each voice violation looks like.
 
 Use band_send_message to return this exact JSON. No other text. No explanation.
 
-If a voice violation is found:
+If a violation is found:
 {{
   "agent": "voice-checker",
-  "input_id": "the input_id from the incoming message",
   "status": "violation",
-  "rule": "rule ID and name",
-  "excerpt": "the exact offending text from ai_output",
+  "rule": "the dimension where the gap is largest: formality, directness, or density",
+  "excerpt": "the exact text from thinking_chain that shows the mismatch",
   "severity": "high or medium"
+}}
+
+If the evidence is ambiguous:
+{{
+  "agent": "voice-checker",
+  "status": "uncertain",
+  "rule": "the dimension that may have a gap",
+  "excerpt": "the text that raised the question",
+  "severity": null
 }}
 
 If no violation is found:
 {{
   "agent": "voice-checker",
-  "input_id": "the input_id from the incoming message",
   "status": "clean",
   "rule": null,
   "excerpt": null,
   "severity": null
 }}
 
-If multiple rules are violated, return the highest severity only. One verdict. Nothing else.
+One verdict. Nothing else.
 
 ---
 
