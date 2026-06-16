@@ -301,12 +301,15 @@ void execute_drift_coordinator(const std::string &tracking_id,
     base_payload.voice_checker_extra_thinking = voice_v.excerpt.value();
   }
 
-  // collect bad results for the verifier gate
+  // collect confirmed findings for verifier gate, uncertain findings for harness only
   std::vector<Verdict> raw_auditor_findings;
+  std::vector<Verdict> uncertain_findings;
   for (auto *finding :
        {&gap_v, &constraint_v, &anti_v, &voice_v, &quality_v, &identity_v}) {
     if (finding->status == "violation" || finding->status == "drifted") {
       raw_auditor_findings.push_back(*finding);
+    } else if (finding->status == "uncertain") {
+      uncertain_findings.push_back(*finding);
     }
   }
 
@@ -324,10 +327,12 @@ void execute_drift_coordinator(const std::string &tracking_id,
     }
   }
 
-  // update db state via harness
-  std::string database_transaction =
-      nlohmann::json(std::make_pair(base_payload, raw_auditor_findings)).dump();
-  async_fire_and_forget("13-harness-logger", database_transaction);
+  // update db state via harness — confirmed violations and uncertain signals both logged
+  nlohmann::json database_transaction = {
+      {"payload", base_payload},
+      {"violations", raw_auditor_findings},
+      {"uncertain", uncertain_findings}};
+  async_fire_and_forget("13-harness-logger", database_transaction.dump());
 
   ingestion_group.wait(); // wrap up any dangling logging threads before closing out
   spdlog::info("Coordinator turn completed successfully for ID: {}",
