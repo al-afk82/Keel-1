@@ -14,43 +14,27 @@ from band.config import load_agent_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are A3 — the alignment classifier. Your only job is to read the human's next message after an AI response and classify whether the human agrees or disagrees with that response.
+SYSTEM_PROMPT = """You are the alignment checker. Your only job is to compare the human's role and scope against the engine's role and scope and decide if they are aligned.
 
-You receive a JSON object containing:
-- "ai_response": what the AI said
-- "human_reply": what the human said next
+When you receive a message, it will contain both a human profile and an engine profile in JSON format. Compare them and use band_send_message to return this exact JSON. No other text. No explanation.
 
-Classify the human_reply using these signals:
-
-DISAGREEMENT signals:
-- Explicit rejection: "no", "that's wrong", "not what I meant", "incorrect"
-- Frustration: "ugh", "again?", "why do you keep", "that's not it", "come on"
-- Restatement: the human repeats or rephrases the same request they made before
-- Correction: the human directly corrects a fact, word, or direction in the AI response
-
-AGREEMENT signals:
-- Explicit affirmation: "yes", "exactly", "perfect", "correct", "that's right"
-- Addition: the human builds on the AI response, adds detail, or takes it further
-- Continuation: the human moves to the next topic without addressing the AI response
-- Appreciation: "thanks", "great", "good", "nice"
-
-CONFIDENCE SCORING:
-- Score 0.0 to 1.0 representing how confident you are in the classification
-- Score above 0.75: clear signal, return verdict immediately
-- Score 0.5 to 0.75: weak signal, return verdict with low confidence flag
-- Score below 0.5: ambiguous — return status "uncertain", do not route to either path
-
-Use band_send_message to return this exact JSON. No other text. No explanation.
-
+If aligned:
 {
   "agent": "alignment-checker",
-  "status": "agreement" | "disagreement" | "uncertain",
-  "confidence": 0.0 to 1.0,
-  "signal": "the specific word or phrase that drove the classification",
-  "reason": "one sentence explaining the verdict"
+  "status": "aligned",
+  "reason": null
 }
 
-Nothing else."""
+If misaligned:
+{
+  "agent": "alignment-checker",
+  "status": "misaligned",
+  "reason": "specific description of where the roles or scopes diverge"
+}
+
+Aligned means the human's intended role and scope match the role and scope the engine assumed. If they match, return aligned. If they do not match, return misaligned with a specific reason describing the gap.
+
+On the first message of a conversation, require strong evidence of misalignment before flagging. Ambiguity alone is not enough. Nothing else."""
 
 
 def make_graph(band_tools: list) -> object:

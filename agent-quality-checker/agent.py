@@ -27,7 +27,7 @@ If a quality failure is found:
   "status": "violation",
   "rule": "criteria ID and name",
   "excerpt": "the exact failing text or description of what is missing",
-  "severity": "high or medium"
+  "severity": "high, medium, or low — use the severity defined for that criterion in the reference"
 }}
 
 If quality is acceptable:
