@@ -20,10 +20,11 @@ You receive a JSON payload with these fields:
 "tracking_id" — unique identifier for this exchange
 "human_msg" — what the human said, verbatim
 "thinking_chain" — the AI engine's verbatim internal dialog, its raw reasoning captured exactly as it unfolded before any response was produced
+"ai_output" — the AI engine's polished final response, what the human actually sees
 "human_scope" — the scope the human defined, extracted by the profiler
 "engine_scope" — the scope the engine assumed, extracted by the profiler
 
-Before concluding, reason through the evidence in this order. First read "human_scope" and "human_msg" together. Ask: what would the human need in order to actually do something with the engine's response? Not what they asked for word for word — what they needed to take a next step. Second read "thinking_chain". Ask: is that thing present? A gap is a missing requirement, not a missing detail. Something the human would need to act that the engine did not provide. If the human could derive what they need from what is there, there is no gap. If the absence is material and clear, that is a finding. If you are not sure whether the absence is material, return uncertain.
+Before concluding, reason through the evidence in this order. First read "human_scope" and "human_msg" together. Ask: what would the human need in order to actually do something with the engine's response? Not what they asked for word for word — what they needed to take a next step. Second read "ai_output" — this is what the human receives, so this is the primary surface to check. Ask: is the required thing present in the response the human actually sees? Third check "thinking_chain" — if the engine reasoned through the requirement but dropped it before the final response, that is a gap too. A gap is a missing requirement, not a missing detail. Something the human would need to act that the engine did not provide. If the human could derive what they need from what is there, there is no gap. If the absence is material and clear, that is a finding. If you are not sure whether the absence is material, return uncertain.
 
 Use band_send_message to return this exact JSON. No other text. No explanation.
 
