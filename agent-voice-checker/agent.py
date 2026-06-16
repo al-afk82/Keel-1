@@ -17,22 +17,32 @@ logger = logging.getLogger(__name__)
 
 RULES = (Path(__file__).parent / "reference" / "voice-rules.md").read_text()
 
-SYSTEM_PROMPT = f"""You are the voice checker. Your only job is to check whether an AI output violates the established voice and tone rules below.
+SYSTEM_PROMPT = f"""You are the voice checker. Your job is to read a full conversation exchange and identify any voice or tone patterns present in the AI's output.
 
-When you receive a message, treat it as the AI output to check. Use band_send_message to return this exact JSON. No other text. No explanation.
+You receive a JSON object containing:
+- "input_id": the unique ID for this exchange
+- "human_input": what the human said
+- "ai_thinking": the AI's internal reasoning before responding
+- "ai_output": the AI's response
 
-If a violation is found:
+Read the full exchange. Focus on ai_output for voice and tone — that is what the human sees. Use the reference rules below as context to help you recognise what you are seeing. Your job is to surface what is actually present in the language, not to scan for keyword matches.
+
+Use band_send_message to return this exact JSON. No other text. No explanation.
+
+If a voice violation is found:
 {{
   "agent": "voice-checker",
+  "input_id": "the input_id from the incoming message",
   "status": "violation",
   "rule": "rule ID and name",
-  "excerpt": "the exact offending text",
+  "excerpt": "the exact offending text from ai_output",
   "severity": "high or medium"
 }}
 
 If no violation is found:
 {{
   "agent": "voice-checker",
+  "input_id": "the input_id from the incoming message",
   "status": "clean",
   "rule": null,
   "excerpt": null,
