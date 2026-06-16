@@ -16,15 +16,10 @@ logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are the human profiler. Your only job is to read the human's message and define their role and scope in this conversation.
 
-You receive a JSON object containing:
-- "input_id": the unique ID assigned to this exchange by A1
-- "input": the human's message to profile
-
-Use band_send_message to return this exact JSON. No other text. No explanation.
+When you receive a message, treat it as the human input to profile. Use band_send_message to return this exact JSON. No other text. No explanation.
 
 {
   "agent": "human-profiler",
-  "input_id": "the input_id from the incoming message",
   "status": "profiled",
   "id": "human",
   "role": "the role the human is operating in for this request",

@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-from datetime import datetime, timezone
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage
@@ -15,23 +14,18 @@ from band.config import load_agent_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT_TEMPLATE = """You are A2 — the thinking logger. Your only job is to log the engine's internal thinking verbatim and carry the input_id assigned by A1.
+SYSTEM_PROMPT = """You are the thinking logger. Your only job is to log the engine's internal thinking verbatim and return a confirmation.
 
-You receive a JSON object containing:
-- "input_id": the unique ID assigned to this exchange by A1
-- "thinking": the engine's internal dialog before its final response
+When you receive a message, treat it as the engine's thinking to log. Use band_send_message to return this exact JSON. No other text. No explanation.
 
-You do not generate a new ID. You carry the input_id from A1 so this log entry is tied to the same exchange. Use band_send_message to return this exact JSON. No other text. No explanation.
-
-{{
+{
   "agent": "thinking-logger",
-  "input_id": "the input_id from A1",
   "status": "logged",
   "thinking": "the engine thinking verbatim",
-  "timestamp": "{timestamp}"
-}}
+  "timestamp": "ISO 8601 timestamp"
+}
 
-Replace thinking with the exact content you received. Carry the input_id unchanged. Use the timestamp exactly as written above. Nothing else."""
+Replace the thinking field with the exact content you received. Replace the timestamp with the current UTC time in ISO 8601 format. Nothing else."""
 
 
 def make_graph(band_tools: list) -> object:
@@ -42,10 +36,7 @@ def make_graph(band_tools: list) -> object:
     llm_with_tools = llm.bind_tools(band_tools)
 
     def call_model(state: MessagesState) -> dict:
-        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-            timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        )
-        messages = [SystemMessage(content=system_prompt)] + state["messages"]
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
         response = llm_with_tools.invoke(messages)
         return {"messages": [response]}
 
