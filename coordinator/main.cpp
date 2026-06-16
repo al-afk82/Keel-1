@@ -273,31 +273,31 @@ void execute_drift_coordinator(const std::string &tracking_id,
   spdlog::info(
       "Intent verified as aligned. Fanning out auditing execution threads.");
 
-  // constraints agent gets profiler scope — it checks against pre-extracted scope, not raw text
-  nlohmann::json constraints_payload = nlohmann::json::parse(context_buffer);
-  constraints_payload["human_scope"] = human_prof.scope;
-  constraints_payload["engine_scope"] = engine_prof.scope;
-  std::string constraints_buffer = constraints_payload.dump();
+  // all auditing agents receive the same enriched payload — raw context plus pre-extracted scope
+  nlohmann::json audit_payload = nlohmann::json::parse(context_buffer);
+  audit_payload["human_scope"] = human_prof.scope;
+  audit_payload["engine_scope"] = engine_prof.scope;
+  std::string audit_buffer = audit_payload.dump();
 
   Verdict gap_v, constraint_v, anti_v, voice_v, quality_v, identity_v;
 
   tbb::task_group audit_group;
   audit_group.run(
-      [&]() { gap_v = sync_fetch_verdict("07-gap-analyzer", context_buffer); });
+      [&]() { gap_v = sync_fetch_verdict("07-gap-analyzer", audit_buffer); });
   audit_group.run([&]() {
-    constraint_v = sync_fetch_verdict("08-constraints-checker", constraints_buffer);
+    constraint_v = sync_fetch_verdict("08-constraints-checker", audit_buffer);
   });
   audit_group.run([&]() {
-    anti_v = sync_fetch_verdict("09-anti-patterns-checker", context_buffer);
+    anti_v = sync_fetch_verdict("09-anti-patterns-checker", audit_buffer);
   });
   audit_group.run([&]() {
-    voice_v = sync_fetch_verdict("10-voice-checker", context_buffer);
+    voice_v = sync_fetch_verdict("10-voice-checker", audit_buffer);
   });
   audit_group.run([&]() {
-    quality_v = sync_fetch_verdict("11-quality-checker", context_buffer);
+    quality_v = sync_fetch_verdict("11-quality-checker", audit_buffer);
   });
   audit_group.run([&]() {
-    identity_v = sync_fetch_verdict("12-identity-agent", context_buffer);
+    identity_v = sync_fetch_verdict("12-identity-agent", audit_buffer);
   });
 
   audit_group.wait(); // sync up before checking findings
