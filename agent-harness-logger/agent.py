@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime, timezone
 
 import requests
 from band import Agent
@@ -18,9 +17,9 @@ from langgraph.prebuilt import ToolNode
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are the harness logger. Your only job is to confirm that the record has been written.
+SYSTEM_PROMPT = """You are the harness logger. You receive a record and it has already been written to the harness by the Python layer before you run.
 
-You will receive a message. The Python layer has already parsed it and written it to the harness before you run. Return this exact JSON. No other text.
+Return this exact JSON. No other text. No explanation.
 
 {
   "agent": "harness-logger",
@@ -28,16 +27,6 @@ You will receive a message. The Python layer has already parsed it and written i
 }
 
 Nothing else."""
-
-
-def derive_turn_status(findings: list) -> str:
-    statuses = {f.get("status") for f in findings if isinstance(f, dict)}
-    confirmed = {"violation", "drifted", "gap-found"}
-    if statuses & confirmed:
-        return "confirmed"
-    if "uncertain" in statuses:
-        return "uncertain"
-    return "clean"
 
 
 def write_to_harness(data: dict) -> None:
@@ -50,6 +39,7 @@ def write_to_harness(data: dict) -> None:
             headers={"x-secret": harness_secret},
             timeout=10,
         )
+        logger.info("Harness write complete.")
     except Exception as e:
         logger.error("Harness write failed: %s", e)
 
@@ -66,35 +56,8 @@ def make_graph(band_tools: list) -> object:
         if last:
             try:
                 raw = last.content if hasattr(last, "content") else str(last)
-                incoming = json.loads(raw) if isinstance(raw, str) else raw
-
-                findings = incoming.get("findings", [])
-                turn_status = derive_turn_status(findings)
-
-                confirmed = [
-                    f for f in findings
-                    if f.get("status") in {"violation", "drifted", "gap-found"}
-                ]
-                uncertain = [
-                    f for f in findings
-                    if f.get("status") == "uncertain"
-                ]
-
-                record = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "turn_status": turn_status,
-                    "payload": incoming.get("payload", {}),
-                    "confirmed_findings": confirmed,
-                    "uncertain_findings": uncertain,
-                }
-
+                record = json.loads(raw) if isinstance(raw, str) else raw
                 write_to_harness(record)
-                logger.info(
-                    "Logged turn — status: %s, confirmed: %d, uncertain: %d",
-                    turn_status,
-                    len(confirmed),
-                    len(uncertain),
-                )
             except Exception as e:
                 logger.warning("Could not parse incoming payload: %s", e)
                 write_to_harness({"raw": str(last), "parse_error": str(e)})
