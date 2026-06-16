@@ -273,13 +273,19 @@ void execute_drift_coordinator(const std::string &tracking_id,
   spdlog::info(
       "Intent verified as aligned. Fanning out auditing execution threads.");
 
+  // constraints agent gets profiler scope — it checks against pre-extracted scope, not raw text
+  nlohmann::json constraints_payload = nlohmann::json::parse(context_buffer);
+  constraints_payload["human_scope"] = human_prof.scope;
+  constraints_payload["engine_scope"] = engine_prof.scope;
+  std::string constraints_buffer = constraints_payload.dump();
+
   Verdict gap_v, constraint_v, anti_v, voice_v, quality_v, identity_v;
 
   tbb::task_group audit_group;
   audit_group.run(
       [&]() { gap_v = sync_fetch_verdict("07-gap-analyzer", context_buffer); });
   audit_group.run([&]() {
-    constraint_v = sync_fetch_verdict("08-constraints-checker", context_buffer);
+    constraint_v = sync_fetch_verdict("08-constraints-checker", constraints_buffer);
   });
   audit_group.run([&]() {
     anti_v = sync_fetch_verdict("09-anti-patterns-checker", context_buffer);
