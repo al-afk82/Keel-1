@@ -59,6 +59,7 @@ struct AuditPayload {
   std::string tracking_id;
   std::string human_msg;
   std::string thinking_chain;
+  std::string ai_output;
   std::optional<std::string> voice_checker_extra_thinking;
 };
 
@@ -72,5 +73,5 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Verdict, agent, status, rule, excerpt,
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Alignment, agent, status, reason, error_code)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AuditPayload, tracking_id, human_msg,
-                                   thinking_chain,
+                                   thinking_chain, ai_output,
                                    voice_checker_extra_thinking)

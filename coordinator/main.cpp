@@ -196,10 +196,11 @@ Profile sync_fetch_profile(const std::string &route,
 
 void execute_drift_coordinator(const std::string &tracking_id,
                                const std::string &human_msg,
-                               const std::string &thinking_chain) {
+                               const std::string &thinking_chain,
+                               const std::string &ai_output) {
   spdlog::info("Coordinator started turn. Sequence ID: {}", tracking_id);
 
-  AuditPayload base_payload{tracking_id, human_msg, thinking_chain,
+  AuditPayload base_payload{tracking_id, human_msg, thinking_chain, ai_output,
                             std::nullopt};
   std::string context_buffer = nlohmann::json(base_payload).dump();
 
@@ -357,10 +358,10 @@ int main() {
             nlohmann::json::parse(req->getBody(), nullptr, false);
 
         if (body.is_discarded() || !body.contains("human_msg") ||
-            !body.contains("thinking_chain")) {
+            !body.contains("thinking_chain") || !body.contains("ai_output")) {
           auto resp = drogon::HttpResponse::newHttpResponse();
           resp->setStatusCode(drogon::k400BadRequest);
-          resp->setBody(R"({"error":"missing human_msg or thinking_chain"})");
+          resp->setBody(R"({"error":"missing human_msg, thinking_chain, or ai_output"})");
           callback(resp);
           return;
         }
@@ -368,9 +369,10 @@ int main() {
         std::string tracking_id = generate_uuid();
         std::string human_msg = body["human_msg"].get<std::string>();
         std::string thinking_chain = body["thinking_chain"].get<std::string>();
+        std::string ai_output = body["ai_output"].get<std::string>();
 
-        std::thread([tracking_id, human_msg, thinking_chain]() {
-          execute_drift_coordinator(tracking_id, human_msg, thinking_chain);
+        std::thread([tracking_id, human_msg, thinking_chain, ai_output]() {
+          execute_drift_coordinator(tracking_id, human_msg, thinking_chain, ai_output);
         }).detach();
 
         auto resp = drogon::HttpResponse::newHttpResponse();
@@ -386,7 +388,7 @@ int main() {
     std::this_thread::sleep_for(std::chrono::milliseconds(1500));
     spdlog::info("Worker thread triggering pipeline turn execution...");
     execute_drift_coordinator(generate_uuid(), "Hello",
-                              "<thinking>None</thinking>");
+                              "<thinking>None</thinking>", "Hello back.");
   });
 
   test_worker.detach();
