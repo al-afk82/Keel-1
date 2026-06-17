@@ -2,7 +2,6 @@
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
-#include <vector>
 
 namespace nlohmann {
 template <typename T> struct adl_serializer<std::optional<T>> {
@@ -28,6 +27,7 @@ template <typename T> struct adl_serializer<std::optional<T>> {
 struct Verdict {
   std::string agent;
   std::string status;
+  std::string certainty;
   std::optional<std::string> rule;
   std::optional<std::string> excerpt;
   std::optional<std::string> severity;
@@ -39,8 +39,9 @@ struct Verdict {
 struct Profile {
   std::string agent;
   std::string status;
-  std::optional<std::string> id; 
-  std::optional<std::string> input_id; // nlohmann crashed when this was blank, made it optional
+  std::optional<std::string> id;
+  std::optional<std::string>
+      input_id; // nlohmann crashed when this was blank, made it optional
   std::string role;
   std::string scope;
   std::optional<std::string> error_code;
@@ -59,19 +60,29 @@ struct AuditPayload {
   std::string tracking_id;
   std::string human_msg;
   std::string thinking_chain;
-  std::string ai_output;
   std::optional<std::string> voice_checker_extra_thinking;
 };
+
+struct VerifierVerdict {
+  std::string agent;
+  std::string status; // "violation" or "clean"
+  std::optional<std::string> rule;
+  std::optional<std::string> excerpt;
+  std::optional<std::string> severity; // "high" or "medium"
+};
+
+// Reflect exactly 5 fields
 
 // macros for serialization junk
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Profile, agent, status, id, input_id, role,
                                    scope, error_code)
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Verdict, agent, status, rule, excerpt,
-                                   severity, reason, error_code)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Verdict, agent, status, certainty, rule,
+                                   excerpt, severity, reason, error_code)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Alignment, agent, status, reason, error_code)
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(AuditPayload, tracking_id, human_msg,
-                                   thinking_chain, ai_output,
-                                   voice_checker_extra_thinking)
+                                   thinking_chain, voice_checker_extra_thinking)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(VerifierVerdict, agent, status, rule,
+                                   excerpt, severity)

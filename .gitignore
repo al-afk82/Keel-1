@@ -1,6 +1,37 @@
 .env
 agent_config.yaml
 
+<<<<<<< HEAD
+**/build/
+build/
+
+*.o
+*.obj
+*.d
+*.out
+*.app
+coordinator/build/hackathon_drift_coordinator
+coordinator/build/mock_agent_server
+
+CMakeCache.txt
+CMakeFiles/
+CMakeCheckOutputs/
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+
+*.swp
+*.swo
+*~
+.netrwhist
+
+.DS_Store
+Thumbs.db
+
+uploads/
+**/uploads/
+=======
 # Python / uv
 __pycache__/
 *.pyc
@@ -8,3 +39,4 @@ __pycache__/
 
 # C++ build artifacts
 coordinator/build/
+>>>>>>> origin/main
