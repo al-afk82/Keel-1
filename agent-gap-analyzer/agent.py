@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage
@@ -10,6 +12,11 @@ from langgraph.prebuilt import ToolNode
 from band import Agent
 from band.adapters.langgraph import LangGraphAdapter
 from band.config import load_agent_config
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from shared.usage import report_usage
+
+AGENT_NAME = "gap-analyzer"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -68,6 +75,8 @@ def make_graph(band_tools: list) -> object:
     def call_model(state: MessagesState) -> dict:
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
         response = llm_with_tools.invoke(messages)
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            report_usage(AGENT_NAME, response.usage_metadata.get("input_tokens", 0), response.usage_metadata.get("output_tokens", 0))
         return {"messages": [response]}
 
     def should_continue(state: MessagesState) -> str:

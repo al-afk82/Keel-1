@@ -2,13 +2,20 @@ import asyncio
 import json
 import logging
 import os
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import requests
 from band import Agent
 from band.adapters.langgraph import LangGraphAdapter
 from band.config import load_agent_config
 from dotenv import load_dotenv
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from shared.usage import report_usage
+
+AGENT_NAME = "harness-logger"
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage
 from langgraph.checkpoint.memory import InMemorySaver
@@ -102,6 +109,8 @@ def make_graph(band_tools: list) -> object:
 
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
         response = llm_with_tools.invoke(messages)
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            report_usage(AGENT_NAME, response.usage_metadata.get("input_tokens", 0), response.usage_metadata.get("output_tokens", 0))
         return {"messages": [response]}
 
     def should_continue(state: MessagesState) -> str:
