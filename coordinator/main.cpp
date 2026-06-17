@@ -10,7 +10,6 @@
 #include <tbb/task_group.h>
 #include <thread>
 #include <vector>
-
 #include "types.hpp"
 
 // Global simulation control hooks managed by the mock ecosystem
