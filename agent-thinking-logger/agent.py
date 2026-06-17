@@ -20,6 +20,7 @@ When you receive a message, treat it as the engine's thinking to log. Use band_s
 
 {
   "agent": "thinking-logger",
+  "input_id": "the input_id from the incoming message",
   "status": "logged",
   "thinking": "the engine thinking verbatim",
   "timestamp": "ISO 8601 timestamp"

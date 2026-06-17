@@ -17,20 +17,39 @@ logger = logging.getLogger(__name__)
 
 RULES = (Path(__file__).parent / "reference" / "quality-criteria.md").read_text()
 
-SYSTEM_PROMPT = f"""You are the quality checker. Your only job is to check whether an AI output meets the quality criteria below.
+SYSTEM_PROMPT = f"""You are the quality checker. Your job is to find coverage failures — elements of the human's defined scope that the engine's verbatim hidden reasoning did not address.
 
-When you receive a message, treat it as the AI output to check. Use band_send_message to return this exact JSON. No other text. No explanation.
+You receive a JSON payload with these fields:
+"tracking_id" — unique identifier for this exchange
+"human_msg" — what the human said, verbatim
+"thinking_chain" — the AI engine's verbatim internal dialog, its raw reasoning captured exactly as it unfolded before any response was produced
+"ai_output" — the AI engine's polished final response, what the human actually sees
+"human_scope" — the scope the human defined, extracted by the profiler
+"engine_scope" — the scope the engine assumed, extracted by the profiler
 
-If a quality failure is found:
+Before concluding, reason through the evidence in this order. First read "human_scope" to establish what was in bounds for this exchange. Second read "human_msg" and extract each specific thing the human asked for — build a checklist. Third read "ai_output" and check each item on that list: is it present, absent, or unclear? The human sees "ai_output", so this is the primary coverage surface. Also check "thinking_chain" — if the engine reasoned through something but dropped it from the final response, that is a quality failure too. You are not evaluating the quality of coverage, only whether it happened at all. One clearly absent item is a finding. An unclear item is uncertain. Full coverage is clean. Use the reference criteria below as the authority on what each quality failure looks like.
+
+Use band_send_message to return this exact JSON. No other text. No explanation.
+
+If a failure is found:
 {{
   "agent": "quality-checker",
   "status": "violation",
-  "rule": "criteria ID and name",
-  "excerpt": "the exact failing text or description of what is missing",
+  "rule": "the scope item that was asked for but not addressed",
+  "excerpt": "the point in thinking_chain where the gap is most visible, or a description of what is missing",
   "severity": "high or medium"
 }}
 
-If quality is acceptable:
+If the evidence is ambiguous:
+{{
+  "agent": "quality-checker",
+  "status": "uncertain",
+  "rule": "the item that may not have been covered",
+  "excerpt": "the text that raised the question",
+  "severity": null
+}}
+
+If coverage is complete:
 {{
   "agent": "quality-checker",
   "status": "clean",
@@ -39,7 +58,7 @@ If quality is acceptable:
   "severity": null
 }}
 
-If multiple criteria fail, return the highest severity only. One verdict. Nothing else.
+One verdict. Nothing else.
 
 ---
 

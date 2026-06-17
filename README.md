@@ -127,8 +127,8 @@ Python with uv — dependency management.
 |-------|--------|
 | 01 Human Logger | pending |
 | 02 Thinking Logger | pending |
-| 03 Human Profiler | pending |
-| 04 Engine Profiler | pending |
+| 03 Human Profiler | live |
+| 04 Engine Profiler | live |
 | 05 Alignment Checker | pending |
 | 06 Question Generator | pending |
 | 07 Gap Analyzer | pending |

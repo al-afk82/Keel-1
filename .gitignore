@@ -1,6 +1,7 @@
 .env
 agent_config.yaml
 
+<<<<<<< HEAD
 **/build/
 build/
 
@@ -30,3 +31,12 @@ Thumbs.db
 
 uploads/
 **/uploads/
+=======
+# Python / uv
+__pycache__/
+*.pyc
+.venv/
+
+# C++ build artifacts
+coordinator/build/
+>>>>>>> origin/main

@@ -20,6 +20,7 @@ When you receive a message, treat it as the engine's internal thinking to profil
 
 {
   "agent": "engine-profiler",
+  "input_id": "the input_id from the incoming message",
   "status": "profiled",
   "id": "engine",
   "role": "the role the engine assumed in its reasoning",

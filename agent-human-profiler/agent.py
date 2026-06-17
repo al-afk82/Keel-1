@@ -20,6 +20,7 @@ When you receive a message, treat it as the human input to profile. Use band_sen
 
 {
   "agent": "human-profiler",
+  "input_id": "the input_id from the incoming message",
   "status": "profiled",
   "id": "human",
   "role": "the role the human is operating in for this request",

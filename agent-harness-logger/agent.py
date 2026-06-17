@@ -1,49 +1,58 @@
 import asyncio
+import json
 import logging
 import os
-import json
+from datetime import datetime, timezone
+
 import requests
-from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import SystemMessage
-from langgraph.graph import StateGraph, MessagesState, END
-from langgraph.checkpoint.memory import InMemorySaver
-from langgraph.prebuilt import ToolNode
 from band import Agent
 from band.adapters.langgraph import LangGraphAdapter
 from band.config import load_agent_config
+from dotenv import load_dotenv
+from langchain_anthropic import ChatAnthropic
+from langchain_core.messages import SystemMessage
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END, MessagesState, StateGraph
+from langgraph.prebuilt import ToolNode
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are the harness logger. Your only job is to receive a compiled record of all agent verdicts and write it to the harness.
+SYSTEM_PROMPT = """You are the harness logger. The Python layer has already classified and written the record to the harness before you run.
 
-When you receive a message, it will contain the full verdict record for one conversation in JSON format. Parse it and use band_send_message to return this exact JSON after logging. No other text. No explanation.
+Return this exact JSON. No other text. No explanation.
 
 {
   "agent": "harness-logger",
-  "status": "logged",
-  "entry_id": "the entry ID returned by the harness",
-  "timestamp": "ISO 8601 timestamp"
+  "status": "logged"
 }
 
 Nothing else."""
 
 
-def write_to_harness(data: dict) -> dict:
+def derive_turn_status(findings: list) -> str:
+    statuses = {f.get("status") for f in findings if isinstance(f, dict)}
+    confirmed = {"violation", "drifted", "gap-found"}
+    if statuses & confirmed:
+        return "confirmed"
+    if "uncertain" in statuses:
+        return "uncertain"
+    return "clean"
+
+
+def write_to_harness(data: dict) -> None:
     harness_url = os.getenv("HARNESS_URL", "http://167.233.71.106:5000")
     harness_secret = os.getenv("HARNESS_SECRET", "drift-harness-2026")
     try:
-        response = requests.post(
+        requests.post(
             f"{harness_url}/write",
             json={"data": data},
             headers={"x-secret": harness_secret},
             timeout=10,
         )
-        return response.json()
+        logger.info("Harness write complete.")
     except Exception as e:
         logger.error("Harness write failed: %s", e)
-        return {"entry_id": "error", "timestamp": ""}
 
 
 def make_graph(band_tools: list) -> object:
@@ -54,15 +63,42 @@ def make_graph(band_tools: list) -> object:
     llm_with_tools = llm.bind_tools(band_tools)
 
     def call_model(state: MessagesState) -> dict:
-        last_message = state["messages"][-1] if state["messages"] else None
-        if last_message:
+        last = state["messages"][-1] if state["messages"] else None
+        if last:
             try:
-                content = last_message.content if hasattr(last_message, "content") else str(last_message)
-                data = json.loads(content) if isinstance(content, str) else content
-                write_to_harness(data)
+                raw = last.content if hasattr(last, "content") else str(last)
+                incoming = json.loads(raw) if isinstance(raw, str) else raw
+
+                findings = incoming.get("findings", [])
+                turn_status = derive_turn_status(findings)
+
+                confirmed = [
+                    f for f in findings
+                    if f.get("status") in {"violation", "drifted", "gap-found"}
+                ]
+                uncertain = [
+                    f for f in findings
+                    if f.get("status") == "uncertain"
+                ]
+
+                record = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "turn_status": turn_status,
+                    "payload": incoming.get("payload", {}),
+                    "confirmed_findings": confirmed,
+                    "uncertain_findings": uncertain,
+                }
+
+                write_to_harness(record)
+                logger.info(
+                    "Logged turn — status: %s, confirmed: %d, uncertain: %d",
+                    turn_status,
+                    len(confirmed),
+                    len(uncertain),
+                )
             except Exception as e:
-                logger.warning("Could not parse message for harness: %s", e)
-                write_to_harness({"raw": str(last_message)})
+                logger.warning("Could not parse incoming payload: %s", e)
+                write_to_harness({"raw": str(last), "parse_error": str(e)})
 
         messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
         response = llm_with_tools.invoke(messages)
