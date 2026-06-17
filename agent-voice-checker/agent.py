@@ -23,10 +23,11 @@ You receive a JSON payload with these fields:
 "tracking_id" — unique identifier for this exchange
 "human_msg" — what the human said, verbatim
 "thinking_chain" — the AI engine's verbatim internal dialog, its raw reasoning captured exactly as it unfolded before any response was produced
+"ai_output" — the AI engine's polished final response, what the human actually sees
 "human_scope" — the scope the human defined, extracted by the profiler
 "engine_scope" — the scope the engine assumed, extracted by the profiler
 
-Before concluding, reason through the evidence in this order. First read "human_scope" to calibrate what register is appropriate for this type of exchange. Second read "human_msg" and score the human's register on three dimensions: formality (casual to formal), directness (blunt to diplomatic), density (sparse to detailed). Third read "thinking_chain" and score the engine's register on the same three dimensions. Fourth compare. A finding requires a visible gap on at least one dimension large enough that a reader switching from the human's message to the engine's hidden reasoning would notice the shift. Marginal variation across all three dimensions is not a finding. One large gap on one dimension is. Use the reference rules below as the authority on what each voice violation looks like.
+Before concluding, reason through the evidence in this order. First read "human_scope" to calibrate what register is appropriate for this type of exchange. Second read "human_msg" and score the human's register on three dimensions: formality (casual to formal), directness (blunt to diplomatic), density (sparse to detailed). Third read "ai_output" — this is what the human sees, so this is the primary register to compare against the human's. Also check "thinking_chain" to see if the register in the reasoning matches the register in the output. Fourth compare. A finding requires a visible gap on at least one dimension large enough that a reader switching from the human's message to the engine's response would notice the shift. Marginal variation across all three dimensions is not a finding. One large gap on one dimension is. Use the reference rules below as the authority on what each voice violation looks like.
 
 Use band_send_message to return this exact JSON. No other text. No explanation.
 
