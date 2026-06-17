@@ -166,8 +166,7 @@ void execute_drift_coordinator(const std::string &tracking_id, const std::string
   std::string context_buffer = nlohmann::json(base_payload).dump();
 
   tbb::task_group ingestion_group;
-  ingestion_group.run([&context_buffer]() { async_fire_and_forget("01-human-logger", context_buffer); });
-  ingestion_group.run([&context_buffer]() { async_fire_and_forget("02-thinking-logger", context_buffer); });
+  ingestion_group.run([&context_buffer]() { async_fire_and_forget("01-logger", context_buffer); });
 
   Profile human_prof; Profile engine_prof;
   tbb::parallel_invoke(
