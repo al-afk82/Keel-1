@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import sys
@@ -48,14 +49,19 @@ def make_graph(band_tools: list) -> object:
     llm_with_tools = llm.bind_tools(band_tools)
 
     def call_model(state: MessagesState) -> dict:
-        system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-            timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        )
-        messages = [SystemMessage(content=system_prompt)] + state["messages"]
-        response = llm_with_tools.invoke(messages)
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            report_usage(AGENT_NAME, response.usage_metadata.get("input_tokens", 0), response.usage_metadata.get("output_tokens", 0))
-        return {"messages": [response]}
+        try:
+            system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+                timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            )
+            messages = [SystemMessage(content=system_prompt)] + state["messages"]
+            response = llm_with_tools.invoke(messages)
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                report_usage(AGENT_NAME, response.usage_metadata.get("input_tokens", 0), response.usage_metadata.get("output_tokens", 0))
+            return {"messages": [response]}
+        except Exception as e:
+            logger.error("Anthropic call failed: %s", e)
+            from langchain_core.messages import AIMessage
+            return {"messages": [AIMessage(content=json.dumps({"agent": AGENT_NAME, "status": "error", "error": str(e)}))]}
 
     def should_continue(state: MessagesState) -> str:
         last = state["messages"][-1]

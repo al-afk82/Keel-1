@@ -107,11 +107,16 @@ def make_graph(band_tools: list) -> object:
                 logger.warning("Could not parse incoming payload: %s", e)
                 write_to_harness({"raw": str(last), "parse_error": str(e)})
 
-        messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
-        response = llm_with_tools.invoke(messages)
-        if hasattr(response, "usage_metadata") and response.usage_metadata:
-            report_usage(AGENT_NAME, response.usage_metadata.get("input_tokens", 0), response.usage_metadata.get("output_tokens", 0))
-        return {"messages": [response]}
+        try:
+            messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+            response = llm_with_tools.invoke(messages)
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                report_usage(AGENT_NAME, response.usage_metadata.get("input_tokens", 0), response.usage_metadata.get("output_tokens", 0))
+            return {"messages": [response]}
+        except Exception as e:
+            logger.error("Anthropic call failed: %s", e)
+            from langchain_core.messages import AIMessage
+            return {"messages": [AIMessage(content=json.dumps({"agent": AGENT_NAME, "status": "error", "error": str(e)}))]}
 
     def should_continue(state: MessagesState) -> str:
         last = state["messages"][-1]
