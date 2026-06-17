@@ -147,11 +147,19 @@ async def handle_agent_request(request: web.Request) -> web.Response:
         pending.pop(route, None)
 
 
+def _dump_discovered_rooms() -> None:
+    for agent_uuid, room_id in agent_to_room.items():
+        route = UUID_TO_ROUTE.get(agent_uuid, agent_uuid)
+        env_key = "ROOM_" + route.upper().replace("-", "_")
+        logger.info("DISCOVERED ROOM  %s=%s", env_key, room_id)
+
+
 async def event_listener() -> None:
     async for event in link:
         if isinstance(event, RoomAddedEvent):
             if event.room_id not in room_to_agent:
                 await link.subscribe_room(event.room_id)
+                logger.info("Subscribed to new room via RoomAddedEvent: %s", event.room_id)
             continue
 
         if not isinstance(event, MessageEvent):
@@ -160,6 +168,15 @@ async def event_listener() -> None:
         sender_id = event.payload.sender_id
         if sender_id == COORDINATOR_AGENT_ID:
             continue
+
+        room_id = getattr(event, "room_id", None) or getattr(event.payload, "chat_id", None)
+
+        if sender_id and room_id and sender_id not in agent_to_room:
+            agent_to_room[sender_id] = room_id
+            room_to_agent[room_id] = sender_id
+            route = UUID_TO_ROUTE.get(sender_id, "unknown")
+            logger.info("Auto-discovered room for %s: %s", route, room_id)
+            _dump_discovered_rooms()
 
         route = UUID_TO_ROUTE.get(sender_id or "")
         if not route:
@@ -189,8 +206,17 @@ async def main() -> None:
 
     asyncio.create_task(event_listener())
 
+    async def handle_rooms(request: web.Request) -> web.Response:
+        lines = []
+        for agent_uuid, room_id in agent_to_room.items():
+            route = UUID_TO_ROUTE.get(agent_uuid, agent_uuid)
+            env_key = "ROOM_" + route.upper().replace("-", "_")
+            lines.append(f"{env_key}={room_id}")
+        return web.Response(text="\n".join(lines) or "No rooms discovered yet.")
+
     app = web.Application()
     app.router.add_post("/api/agent/{name}", handle_agent_request)
+    app.router.add_get("/rooms", handle_rooms)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", 5000).start()
