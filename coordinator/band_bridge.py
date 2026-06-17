@@ -36,7 +36,7 @@ COORDINATOR_AGENT_ID: str = os.getenv("COORDINATOR_AGENT_ID", "")
 COORDINATOR_API_KEY: str = os.getenv("COORDINATOR_API_KEY", "")
 
 AGENT_UUIDS: dict[str, str] = {
-    "01-logger":             "",
+    "01-logger":             "b4fa1211-d6a7-4171-9351-d633d83bd06c",
     "03-human-profiler":     "5d486be4-f3fd-4e79-9da5-18cf10ca2f45",
     "04-engine-profiler":    "2a4b901a-c078-4a7f-bc80-bfe0e779c7d8",
     "05-alignment-classifier": "007d56f5-6695-47ce-be88-c245586adf59",
