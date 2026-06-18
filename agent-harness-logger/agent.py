@@ -77,6 +77,12 @@ def make_graph(band_tools: list) -> object:
                 raw = last.content if hasattr(last, "content") else str(last)
                 if isinstance(raw, str):
                     raw = strip_mentions(raw)
+                    # The adapter wraps content as "[sender]: ... {json}". Extract
+                    # the JSON object so the parse survives any leading label.
+                    start = raw.find("{")
+                    end = raw.rfind("}")
+                    if start != -1 and end > start:
+                        raw = raw[start:end + 1]
                 incoming = json.loads(raw) if isinstance(raw, str) else raw
 
                 findings = incoming.get("findings", [])
