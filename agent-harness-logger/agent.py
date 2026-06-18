@@ -85,7 +85,7 @@ def write_to_harness(data: dict) -> None:
 
 def make_graph(band_tools: list) -> object:
     llm = ChatAnthropic(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5-20251001",
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
     llm_with_tools = llm.bind_tools(band_tools)

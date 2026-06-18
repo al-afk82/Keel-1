@@ -33,7 +33,7 @@ break them today because they feed content to the model, but any specialist that
 later parses JSON directly will break exactly as the harness logger did.
 
 Fix: apply `shared.mentions.clean_messages` to each specialist's inbound message.
-Status: OPEN — batch pass.
+Status: SOLVED — clean_messages applied across all eleven specialists.
 
 ## 4. input_id ownership (severity: high — coordinator contract)
 

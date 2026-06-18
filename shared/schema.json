@@ -9,20 +9,13 @@
       "severity": "string | null — high | medium | low"
     }
   },
-  "human_log": {
-    "description": "Returned by Agent 01",
+  "log": {
+    "description": "Returned by Agent 01 — the combined logger (human-logger and thinking-logger were merged into one)",
     "fields": {
-      "agent": "human-logger",
+      "agent": "logger",
+      "input_id": "string — UUID4 the coordinator generates for this exchange",
       "status": "logged",
-      "input": "string — verbatim human message",
-      "timestamp": "string — ISO 8601"
-    }
-  },
-  "thinking_log": {
-    "description": "Returned by Agent 02",
-    "fields": {
-      "agent": "thinking-logger",
-      "status": "logged",
+      "human_input": "string — verbatim human message",
       "thinking": "string — verbatim engine thinking blocks",
       "timestamp": "string — ISO 8601"
     }
