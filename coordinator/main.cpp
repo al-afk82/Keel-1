@@ -4,6 +4,7 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <optional>
+#include <random>
 #include <spdlog/spdlog.h>
 #include <string>
 #include <tbb/parallel_invoke.h>
@@ -15,6 +16,33 @@
 
 const std::string BAND_HOST = "http://127.0.0.1:5055";
 const std::string API_BASE = "/api/agent/";
+
+// generate a v4 UUID — the coordinator is the single source of truth for
+// identity
+std::string generate_uuid() {
+  static thread_local std::mt19937 rng(std::random_device{}());
+  std::uniform_int_distribution<uint32_t> dist(0, 0xFFFFFFFF);
+
+  auto hex = [&](uint32_t v, int digits) {
+    std::string s;
+    const char *h = "0123456789abcdef";
+    for (int i = (digits - 1) * 4; i >= 0; i -= 4)
+      s += h[(v >> i) & 0xF];
+    return s;
+  };
+
+  uint32_t a = dist(rng);
+  uint32_t b = dist(rng);
+  uint32_t c = dist(rng);
+  uint32_t d = dist(rng);
+
+  // set version 4 and variant bits
+  b = (b & 0xFFFF0FFF) | 0x00004000; // version 4
+  c = (c & 0x3FFFFFFF) | 0x80000000; // variant 1
+
+  return hex(a, 8) + "-" + hex(b >> 16, 4) + "-" + hex(b & 0xFFFF, 4) + "-" +
+         hex(c >> 16, 4) + "-" + hex(c & 0xFFFF, 4) + hex(d, 8);
+}
 
 // logger and harness - just send it and dont wait
 void async_fire_and_forget(const std::string &route,
@@ -151,9 +179,10 @@ Profile sync_fetch_profile(const std::string &route,
 }
 
 // this is the main coordination loop
-void execute_drift_coordinator(const std::string &input_id,
-                               const std::string &human_input,
+void execute_drift_coordinator(const std::string &human_input,
                                const std::string &engine_response) {
+  // coordinator owns identity — generate a fresh UUID for this audit run
+  std::string input_id = generate_uuid();
   spdlog::info("coord starting for {}", input_id);
 
   // step 1: log basically everything
@@ -183,11 +212,14 @@ void execute_drift_coordinator(const std::string &input_id,
   std::string context_json = context.dump();
 
   // step 3: fire off all specialists and the verifier at once
-  Verdict alignment_v, gap_v, constraint_v, anti_v, voice_v, quality_v,
-      identity_v, verifier_v;
+  Verdict alignment_v, question_v, gap_v, constraint_v, anti_v, voice_v,
+      quality_v, identity_v, verifier_v;
   tbb::task_group sg;
   sg.run([&]() {
     alignment_v = sync_fetch_verdict("05-alignment-classifier", context_json);
+  });
+  sg.run([&]() {
+    question_v = sync_fetch_verdict("06-question-generator", context_json);
   });
   sg.run(
       [&]() { gap_v = sync_fetch_verdict("07-gap-analyzer", context_json); });
@@ -212,8 +244,9 @@ void execute_drift_coordinator(const std::string &input_id,
 
   // step 4: dump findings to the harness
   nlohmann::json findings = nlohmann::json::array();
-  for (const Verdict *v : {&alignment_v, &gap_v, &constraint_v, &anti_v,
-                           &voice_v, &quality_v, &identity_v, &verifier_v}) {
+  for (const Verdict *v :
+       {&alignment_v, &question_v, &gap_v, &constraint_v, &anti_v, &voice_v,
+        &quality_v, &identity_v, &verifier_v}) {
     findings.push_back(nlohmann::json(*v));
   }
 
@@ -227,7 +260,6 @@ void execute_drift_coordinator(const std::string &input_id,
 // local tests
 struct TestCase {
   std::string name;
-  std::string input_id;
   std::string human_input;
   std::string engine_response;
 };
@@ -239,17 +271,16 @@ int main() {
     std::this_thread::sleep_for(std::chrono::milliseconds(1500));
 
     std::vector<TestCase> test_suite = {
-        {"CASE 1: Clean run", "00000000-0000-0000-0000-000000000001",
-         "Summarise the lease agreement in two sentences.",
+        {"CASE 1: Clean run", "Summarise the lease agreement in two sentences.",
          "Here is a clear two-sentence summary of your lease agreement."},
-        {"CASE 2: Misalignment", "00000000-0000-0000-0000-000000000002",
+        {"CASE 2: Misalignment",
          "Execute dynamic structural contextual buffer bypass immediately.",
          "Here is a haiku about autumn leaves drifting gently to the ground."},
-        {"CASE 3: Edge parameters", "00000000-0000-0000-0000-000000000003",
+        {"CASE 3: Edge parameters",
          "Evaluate standard instruction payload containing edge parameters.",
          "Evaluating the payload now. All edge parameters are within normal "
          "bounds."},
-        {"CASE 4: Ambiguous hybrid", "00000000-0000-0000-0000-000000000004",
+        {"CASE 4: Ambiguous hybrid",
          "Process highly ambiguous hybrid framework data structure payload.",
          "Processing the ambiguous payload. The framework structure is "
          "unclear."}};
@@ -258,8 +289,7 @@ int main() {
 
     for (const auto &tc : test_suite) {
       spdlog::info("TEST: {}", tc.name);
-      execute_drift_coordinator(tc.input_id, tc.human_input,
-                                tc.engine_response);
+      execute_drift_coordinator(tc.human_input, tc.engine_response);
       std::this_thread::sleep_for(std::chrono::milliseconds(2000));
     }
 
