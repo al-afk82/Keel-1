@@ -85,3 +85,14 @@ Ayoub and Iterio in their own environment. `run_chain.py` is the exact contract.
 main.cpp BAND_HOST is already pointed at 5055.
 
 Fix: build against the contract. Status: OPEN — owned by C++ team.
+
+## 10. Agents wrap verdicts in markdown code fences (severity: high — loses findings)
+
+Some agents (gap analyzer, constraints, identity, engine profiler) reply with
+their JSON wrapped in ```json fences. A consumer doing a plain JSON parse fails
+and loses the verdict, which is a second silent undercount on top of issue 1. In
+the 2026-06-18 run this lost three real findings, dropping a confirmed count from
+eight to five.
+
+Fix: the bridge unwraps fences and extracts the JSON object on the return path,
+so every consumer gets clean JSON. Status: SOLVED.

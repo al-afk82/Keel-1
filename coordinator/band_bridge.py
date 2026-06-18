@@ -86,6 +86,26 @@ _MENTION_RE = re.compile(r"^\s*(@\[\[[0-9a-fA-F-]+\]\]\s*)+")
 def strip_mentions(text: str) -> str:
     return _MENTION_RE.sub("", text).strip()
 
+
+_FENCE_OPEN = re.compile(r"^```[a-zA-Z]*\s*")
+_FENCE_CLOSE = re.compile(r"\s*```$")
+
+
+def clean_reply(text: str) -> str:
+    """Return a verdict as clean JSON.
+
+    Agents are inconsistent: some reply with bare JSON, some wrap it in markdown
+    code fences, some tag the coordinator first. Strip the mention, strip any
+    fence, then extract the JSON object so every consumer gets parseable JSON.
+    """
+    t = strip_mentions(text)
+    t = _FENCE_OPEN.sub("", t.strip())
+    t = _FENCE_CLOSE.sub("", t.strip())
+    start, end = t.find("{"), t.rfind("}")
+    if start != -1 and end > start:
+        t = t[start:end + 1]
+    return t.strip()
+
 FIRE_AND_FORGET: set[str] = {"01-logger", "14-harness-logger"}
 
 # One queue of waiting futures per route. A queue, not a single slot, so two
@@ -181,7 +201,7 @@ async def event_listener() -> None:
         if dq:
             for fut in list(dq):
                 if not fut.done():
-                    content = strip_mentions(event.payload.content or "{}")
+                    content = clean_reply(event.payload.content or "{}")
                     logger.info("Verdict received from %s", route)
                     fut.set_result(content)
                     break
