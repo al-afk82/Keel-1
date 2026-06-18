@@ -40,7 +40,7 @@ Use band_send_message to return this exact JSON. No other text. No explanation.
 If a gap is found:
 {
   "agent": "gap-analyzer",
-  "status": "gap-found",
+  "status": "violation",
   "rule": "the specific requirement the human needed but did not get",
   "excerpt": "the point in thinking_chain where the gap is most visible",
   "severity": "high or medium"
@@ -58,7 +58,7 @@ If the evidence is ambiguous:
 If no gap exists:
 {
   "agent": "gap-analyzer",
-  "status": "no-gap",
+  "status": "clean",
   "rule": null,
   "excerpt": null,
   "severity": null

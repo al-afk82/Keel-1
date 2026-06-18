@@ -10,7 +10,8 @@ shape of message, to these routes, in this order, collect this shape back.
 Sequence:
   1. 01-logger        fire and forget, logs the raw input
   2. profilers        03 and 04 in parallel, their output is context for step 3
-  3. verdict agents   05 through 13 in parallel, each returns a finding
+  3. verdict agents   05 through 12 in parallel, each returns a finding
+  3.5 verifier        receives non-clean findings from step 3, returns one verdict
   4. 14-harness-logger fire and forget, receives {payload, findings}
 
 The bridge runs on 5055. Verdict routes are synchronous, the bridge waits for
@@ -33,8 +34,7 @@ TIMEOUT = 35
 
 PROFILERS = ["03-human-profiler", "04-engine-profiler"]
 
-# The verdict agents. All thirteen are live; question-generator rejoined the fan
-# once its Band key was relinked on 2026-06-18.
+# Specialist verdict agents. Verifier runs sequentially after these complete.
 VERDICT_AGENTS = [
     "05-alignment-classifier",
     "06-question-generator",
@@ -44,8 +44,10 @@ VERDICT_AGENTS = [
     "10-voice-checker",
     "11-quality-checker",
     "12-identity-agent",
-    "13-verifier",
 ]
+
+# Statuses that represent a real finding — passed to verifier for second-pass audit.
+PROBLEM_STATUSES = {"violation", "drifted", "misaligned", "uncertain", "gap-found"}
 
 SKIPPED = []
 
@@ -99,9 +101,20 @@ def main() -> None:
     for route, res in profiles.items():
         print(f"  {route}: {json.dumps(res)[:140]}")
 
+    # Build enriched context that matches the field names specialist prompts expect.
+    # thinking_chain and ai_output point at the same value for now — in production
+    # these would be split into the engine's raw reasoning vs its final response.
+    human_prof = profiles.get("03-human-profiler") or {}
+    engine_prof = profiles.get("04-engine-profiler") or {}
+
     context = dict(base)
-    context["human_profile"] = profiles.get("03-human-profiler")
-    context["engine_profile"] = profiles.get("04-engine-profiler")
+    context["human_msg"] = human_input
+    context["thinking_chain"] = engine_response
+    context["ai_output"] = engine_response
+    context["human_scope"] = human_prof.get("scope", "")
+    context["engine_scope"] = engine_prof.get("scope", "")
+    context["human_profile"] = human_prof
+    context["engine_profile"] = engine_prof
 
     print("step 3  verdict agents ...")
     verdicts = fan(VERDICT_AGENTS, context)
@@ -109,6 +122,18 @@ def main() -> None:
     for route, res in verdicts.items():
         findings.append(res)
         print(f"  {route}: {json.dumps(res)[:140]}")
+
+    print("step 3.5  verifier ...")
+    non_clean = [
+        f for f in findings
+        if isinstance(f, dict) and f.get("status", "").lower().strip() in PROBLEM_STATUSES
+    ]
+    if non_clean:
+        _, verifier_result = call("13-verifier", {"input_id": input_id, "findings": non_clean})
+    else:
+        verifier_result = {"agent": "verifier", "status": "clean", "rule": None, "excerpt": None, "severity": None}
+    findings.append(verifier_result)
+    print(f"  13-verifier: {json.dumps(verifier_result)[:140]}")
 
     print("step 4  aggregate to harness logger ...")
     aggregate = {"payload": base, "findings": findings}
