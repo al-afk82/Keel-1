@@ -16,6 +16,7 @@ from band.config import load_agent_config
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from shared.usage import report_usage
+from shared.mentions import clean_messages
 
 AGENT_NAME = "quality-checker"
 
@@ -81,7 +82,7 @@ def make_graph(band_tools: list) -> object:
 
     def call_model(state: MessagesState) -> dict:
         try:
-            messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+            messages = [SystemMessage(content=SYSTEM_PROMPT)] + clean_messages(state["messages"])
             response = llm_with_tools.invoke(messages)
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 report_usage(AGENT_NAME, response.usage_metadata.get("input_tokens", 0), response.usage_metadata.get("output_tokens", 0))

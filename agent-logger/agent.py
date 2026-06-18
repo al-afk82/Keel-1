@@ -44,7 +44,7 @@ Generate a fresh UUID4 for input_id. Use the timestamp exactly as written above.
 
 def make_graph(band_tools: list) -> object:
     llm = ChatAnthropic(
-        model="claude-sonnet-4-6",
+        model="claude-haiku-4-5-20251001",
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
     llm_with_tools = llm.bind_tools(band_tools)

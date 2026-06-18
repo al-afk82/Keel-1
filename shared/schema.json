@@ -3,26 +3,19 @@
     "description": "Returned by every specialist agent",
     "fields": {
       "agent": "string — agent name",
-      "status": "string — clean | violation | aligned | misaligned | logged | profiled | gap-found | no-gap | question-ready",
+      "status": "string — clean | violation | uncertain | aligned | misaligned | drifted | gap-found | no-gap | question-ready | logged | profiled",
       "rule": "string | null — rule ID and name if violated",
       "excerpt": "string | null — exact offending text if violated",
       "severity": "string | null — high | medium | low"
     }
   },
-  "human_log": {
-    "description": "Returned by Agent 01",
+  "log": {
+    "description": "Returned by Agent 01 — the combined logger (human-logger and thinking-logger were merged into one)",
     "fields": {
-      "agent": "human-logger",
+      "agent": "logger",
+      "input_id": "string — UUID4 the coordinator generates for this exchange",
       "status": "logged",
-      "input": "string — verbatim human message",
-      "timestamp": "string — ISO 8601"
-    }
-  },
-  "thinking_log": {
-    "description": "Returned by Agent 02",
-    "fields": {
-      "agent": "thinking-logger",
-      "status": "logged",
+      "human_input": "string — verbatim human message",
       "thinking": "string — verbatim engine thinking blocks",
       "timestamp": "string — ISO 8601"
     }
@@ -31,6 +24,7 @@
     "description": "Returned by Agent 03 and Agent 04",
     "fields": {
       "agent": "string — human-profiler or engine-profiler",
+      "input_id": "string — the input_id carried from the incoming message",
       "status": "profiled",
       "id": "string — conversation-scoped identifier",
       "role": "string — role in this conversation",

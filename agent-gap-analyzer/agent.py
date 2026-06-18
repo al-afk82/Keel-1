@@ -16,6 +16,7 @@ from band.config import load_agent_config
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from shared.usage import report_usage
+from shared.mentions import clean_messages
 
 AGENT_NAME = "gap-analyzer"
 
@@ -39,7 +40,7 @@ Use band_send_message to return this exact JSON. No other text. No explanation.
 If a gap is found:
 {
   "agent": "gap-analyzer",
-  "status": "gap-found",
+  "status": "violation",
   "rule": "the specific requirement the human needed but did not get",
   "excerpt": "the point in thinking_chain where the gap is most visible",
   "severity": "high or medium"
@@ -57,7 +58,7 @@ If the evidence is ambiguous:
 If no gap exists:
 {
   "agent": "gap-analyzer",
-  "status": "no-gap",
+  "status": "clean",
   "rule": null,
   "excerpt": null,
   "severity": null
@@ -75,7 +76,7 @@ def make_graph(band_tools: list) -> object:
 
     def call_model(state: MessagesState) -> dict:
         try:
-            messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+            messages = [SystemMessage(content=SYSTEM_PROMPT)] + clean_messages(state["messages"])
             response = llm_with_tools.invoke(messages)
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 report_usage(AGENT_NAME, response.usage_metadata.get("input_tokens", 0), response.usage_metadata.get("output_tokens", 0))
