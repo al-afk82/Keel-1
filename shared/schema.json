@@ -3,7 +3,7 @@
     "description": "Returned by every specialist agent",
     "fields": {
       "agent": "string — agent name",
-      "status": "string — clean | violation | aligned | misaligned | logged | profiled | gap-found | no-gap | question-ready",
+      "status": "string — clean | violation | uncertain | aligned | misaligned | drifted | gap-found | no-gap | question-ready | logged | profiled",
       "rule": "string | null — rule ID and name if violated",
       "excerpt": "string | null — exact offending text if violated",
       "severity": "string | null — high | medium | low"
