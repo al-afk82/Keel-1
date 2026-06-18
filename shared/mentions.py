@@ -16,3 +16,23 @@ def strip_mentions(content: str) -> str:
     if not isinstance(content, str):
         return content
     return _MENTION_PREFIX.sub("", content).strip()
+
+
+def clean_messages(messages: list) -> list:
+    """Return messages with leading mention tokens stripped from string content.
+
+    Generic across agents. Leaves non-string content and message structure
+    untouched, so it is safe for any LangChain message list.
+    """
+    cleaned = []
+    for m in messages:
+        content = getattr(m, "content", None)
+        if isinstance(content, str):
+            stripped = strip_mentions(content)
+            if stripped != content:
+                try:
+                    m = m.model_copy(update={"content": stripped})
+                except Exception:
+                    m.content = stripped
+        cleaned.append(m)
+    return cleaned

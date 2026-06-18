@@ -17,6 +17,7 @@ from band.config import load_agent_config
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from shared.usage import report_usage
+from shared.mentions import clean_messages
 
 AGENT_NAME = "logger"
 
@@ -53,7 +54,7 @@ def make_graph(band_tools: list) -> object:
             system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
                 timestamp=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             )
-            messages = [SystemMessage(content=system_prompt)] + state["messages"]
+            messages = [SystemMessage(content=system_prompt)] + clean_messages(state["messages"])
             response = llm_with_tools.invoke(messages)
             if hasattr(response, "usage_metadata") and response.usage_metadata:
                 report_usage(AGENT_NAME, response.usage_metadata.get("input_tokens", 0), response.usage_metadata.get("output_tokens", 0))
