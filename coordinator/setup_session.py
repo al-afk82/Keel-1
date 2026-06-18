@@ -2,12 +2,16 @@
 """
 Session setup.
 
-Creates one shared Band session and adds the coordinator plus every specialist
-agent as participants. Run this once. It prints the SESSION_ROOM_ID line you
-paste into coordinator/.env, then the bridge operates inside that single room.
+Creates one shared Band session and adds every specialist agent as a
+participant. The coordinator is the session owner automatically, so it is not
+added explicitly. Prints the SESSION_ROOM_ID line for coordinator/.env, then the
+bridge operates inside that single room.
 
-Auth: uses the human user key (band_u_...) via X-API-Key.
-Set BAND_USER_KEY in coordinator/.env before running.
+Auth: uses the coordinator agent key (band_a_...) via X-API-Key against the
+agent API. The human API needs an Enterprise plan, the agent API does not.
+
+Idempotent: if SESSION_ROOM_ID is already set in .env the script reuses that
+room and only adds participants, so it never spawns duplicate sessions.
 
 Usage:
   python3 setup_session.py
@@ -22,8 +26,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_URL = "https://app.band.ai/api/v1"
-USER_KEY = os.getenv("BAND_USER_KEY", "").strip()
-COORDINATOR_AGENT_ID = os.getenv("COORDINATOR_AGENT_ID", "").strip()
+AGENT_KEY = os.getenv("COORDINATOR_API_KEY", "").strip()
+EXISTING_ROOM = os.getenv("SESSION_ROOM_ID", "").strip()
 
 # Coordinator plus the thirteen specialists. Keep in sync with band_bridge.py.
 AGENT_UUIDS = {
@@ -47,8 +51,8 @@ SESSION_TITLE = "Drift Detection"
 
 def create_session() -> str:
     resp = requests.post(
-        f"{BASE_URL}/me/chats",
-        headers={"X-API-Key": USER_KEY},
+        f"{BASE_URL}/agent/chats",
+        headers={"X-API-Key": AGENT_KEY},
         json={"chat": {"title": SESSION_TITLE}},
         timeout=15,
     )
@@ -60,8 +64,8 @@ def create_session() -> str:
 
 def add_participant(room_id: str, participant_id: str, label: str) -> None:
     resp = requests.post(
-        f"{BASE_URL}/me/chats/{room_id}/participants",
-        headers={"X-API-Key": USER_KEY},
+        f"{BASE_URL}/agent/chats/{room_id}/participants",
+        headers={"X-API-Key": AGENT_KEY},
         json={"participant": {"participant_id": participant_id, "role": "member"}},
         timeout=15,
     )
@@ -72,14 +76,15 @@ def add_participant(room_id: str, participant_id: str, label: str) -> None:
 
 
 def main() -> None:
-    if not USER_KEY:
-        sys.exit("BAND_USER_KEY is not set in .env")
-    if not COORDINATOR_AGENT_ID:
-        sys.exit("COORDINATOR_AGENT_ID is not set in .env")
+    if not AGENT_KEY:
+        sys.exit("COORDINATOR_API_KEY is not set in .env")
 
-    room_id = create_session()
+    if EXISTING_ROOM:
+        room_id = EXISTING_ROOM
+        print(f"Reusing session: {room_id}")
+    else:
+        room_id = create_session()
 
-    add_participant(room_id, COORDINATOR_AGENT_ID, "coordinator")
     for route, agent_uuid in AGENT_UUIDS.items():
         add_participant(room_id, agent_uuid, route)
 
