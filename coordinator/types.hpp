@@ -55,13 +55,64 @@ struct Verdict {
   std::optional<std::string> error_code;
 };
 
-// nlohmann macros so we dont have to write manual parsers
+// nlohmann macros / custom parsers
 
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(BasePayload, input_id, human_input,
                                    engine_response)
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Profile, agent, status, id, input_id, role,
-                                   scope, error_code)
+// --- Profile: tolerant from_json that handles missing keys ---
+inline void to_json(nlohmann::json &j, const Profile &p) {
+  j = nlohmann::json{
+      {"agent", p.agent},          {"status", p.status}, {"id", p.id},
+      {"input_id", p.input_id},    {"role", p.role},     {"scope", p.scope},
+      {"error_code", p.error_code}};
+}
 
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Verdict, agent, status, certainty, rule,
-                                   excerpt, severity, reason, error_code)
+inline void from_json(const nlohmann::json &j, Profile &p) {
+  p.agent = j.value("agent", "");
+  p.status = j.value("status", "");
+  p.role = j.value("role", "");
+  p.scope = j.value("scope", "");
+  p.id = (j.contains("id") && !j["id"].is_null())
+             ? std::optional<std::string>(j["id"].get<std::string>())
+             : std::nullopt;
+  p.input_id =
+      (j.contains("input_id") && !j["input_id"].is_null())
+          ? std::optional<std::string>(j["input_id"].get<std::string>())
+          : std::nullopt;
+  p.error_code =
+      (j.contains("error_code") && !j["error_code"].is_null())
+          ? std::optional<std::string>(j["error_code"].get<std::string>())
+          : std::nullopt;
+}
+
+// --- Verdict: tolerant from_json that handles missing keys ---
+inline void to_json(nlohmann::json &j, const Verdict &v) {
+  j = nlohmann::json{{"agent", v.agent},         {"status", v.status},
+                     {"certainty", v.certainty}, {"rule", v.rule},
+                     {"excerpt", v.excerpt},     {"severity", v.severity},
+                     {"reason", v.reason},       {"error_code", v.error_code}};
+}
+
+inline void from_json(const nlohmann::json &j, Verdict &v) {
+  v.agent = j.value("agent", "");
+  v.status = j.value("status", "");
+  v.certainty = j.value("certainty", "");
+  v.rule = (j.contains("rule") && !j["rule"].is_null())
+               ? std::optional<std::string>(j["rule"].get<std::string>())
+               : std::nullopt;
+  v.excerpt = (j.contains("excerpt") && !j["excerpt"].is_null())
+                  ? std::optional<std::string>(j["excerpt"].get<std::string>())
+                  : std::nullopt;
+  v.severity =
+      (j.contains("severity") && !j["severity"].is_null())
+          ? std::optional<std::string>(j["severity"].get<std::string>())
+          : std::nullopt;
+  v.reason = (j.contains("reason") && !j["reason"].is_null())
+                 ? std::optional<std::string>(j["reason"].get<std::string>())
+                 : std::nullopt;
+  v.error_code =
+      (j.contains("error_code") && !j["error_code"].is_null())
+          ? std::optional<std::string>(j["error_code"].get<std::string>())
+          : std::nullopt;
+}
