@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from shared.usage import report_usage
+from shared.mentions import strip_mentions
 
 AGENT_NAME = "harness-logger"
 from langchain_anthropic import ChatAnthropic
@@ -74,6 +75,8 @@ def make_graph(band_tools: list) -> object:
         if last:
             try:
                 raw = last.content if hasattr(last, "content") else str(last)
+                if isinstance(raw, str):
+                    raw = strip_mentions(raw)
                 incoming = json.loads(raw) if isinstance(raw, str) else raw
 
                 findings = incoming.get("findings", [])
