@@ -49,6 +49,10 @@ SESSION_ROOM_ID: str = os.getenv("SESSION_ROOM_ID", "")
 # the C++ coordinator's BAND_HOST must point at the same port.
 BRIDGE_PORT: int = int(os.getenv("BRIDGE_PORT", "5055"))
 
+# How long to wait for an agent's verdict before giving up. An LLM round trip
+# takes several seconds, so this must comfortably exceed model latency.
+REPLY_TIMEOUT: float = float(os.getenv("BRIDGE_REPLY_TIMEOUT", "30"))
+
 # How an agent is tagged inside a message. Band renders @[[uuid]] as the agent's
 # name. If the first live test shows the wrong agent responding, this is the one
 # line to change.
@@ -125,7 +129,7 @@ async def handle_agent_request(request: web.Request) -> web.Response:
     pending[route] = fut
 
     try:
-        result = await asyncio.wait_for(fut, timeout=2.3)
+        result = await asyncio.wait_for(fut, timeout=REPLY_TIMEOUT)
         return web.Response(content_type="application/json", text=result)
     except asyncio.TimeoutError:
         logger.warning("Timeout waiting for %s", route)
