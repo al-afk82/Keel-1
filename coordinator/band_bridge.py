@@ -24,7 +24,11 @@ import logging
 import os
 
 from aiohttp import web
-from band.client.rest import ChatMessageRequest, DEFAULT_REQUEST_OPTIONS
+from band.client.rest import (
+    ChatMessageRequest,
+    ChatMessageRequestMentionsItem,
+    DEFAULT_REQUEST_OPTIONS,
+)
 from band.platform.event import MessageEvent, RoomAddedEvent
 from band.platform.link import BandLink
 from dotenv import load_dotenv
@@ -71,10 +75,13 @@ pending: dict[str, "asyncio.Future[str]"] = {}
 link: BandLink | None = None
 
 
-async def _send_to_session(payload: str) -> None:
+async def _send_to_session(payload: str, agent_uuid: str) -> None:
     await link.rest.agent_api_messages.create_agent_chat_message(
         chat_id=SESSION_ROOM_ID,
-        message=ChatMessageRequest(content=payload),
+        message=ChatMessageRequest(
+            content=payload,
+            mentions=[ChatMessageRequestMentionsItem(id=agent_uuid)],
+        ),
         request_options=DEFAULT_REQUEST_OPTIONS,
     )
 
@@ -92,7 +99,7 @@ async def handle_agent_request(request: web.Request) -> web.Response:
     payload = mention + body
 
     try:
-        await _send_to_session(payload)
+        await _send_to_session(payload, agent_uuid)
     except Exception as exc:
         logger.error("Send failed for %s: %s", route, exc)
         return web.Response(
