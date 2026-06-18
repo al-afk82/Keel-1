@@ -2,14 +2,19 @@
 """
 Band Bridge
 
-Translates the C++ coordinator's sync HTTP calls into Band async messages.
+Translates the C++ coordinator's sync HTTP calls into Band messages.
 Runs on port 5000, matching the mock_server interface exactly.
 The C++ coordinator needs BAND_HOST=http://127.0.0.1:5000 (unchanged).
 
-Setup required before first run:
+Model: one shared session holds the coordinator and all agents. To target an
+agent the bridge posts into that single room with an at mention prefix, so only
+the named agent responds. Replies land in the same room and are matched back to
+the caller by sender id.
+
+Setup before first run:
   1. Register the coordinator as a Band agent — get its agent_id and api_key.
-  2. Create a DM room between the coordinator and each specialist agent.
-  3. Set all env vars in coordinator/.env (see ROOM_* vars below).
+  2. Run setup_session.py to create the session and add every participant.
+  3. Put COORDINATOR_AGENT_ID, COORDINATOR_API_KEY and SESSION_ROOM_ID in .env.
   4. Run: python3 band_bridge.py
 """
 
@@ -34,6 +39,12 @@ logger = logging.getLogger(__name__)
 
 COORDINATOR_AGENT_ID: str = os.getenv("COORDINATOR_AGENT_ID", "")
 COORDINATOR_API_KEY: str = os.getenv("COORDINATOR_API_KEY", "")
+SESSION_ROOM_ID: str = os.getenv("SESSION_ROOM_ID", "")
+
+# How an agent is tagged inside a message. Band renders @[[uuid]] as the agent's
+# name. If the first live test shows the wrong agent responding, this is the one
+# line to change.
+MENTION_TEMPLATE: str = "@[[{uuid}]] "
 
 AGENT_UUIDS: dict[str, str] = {
     "01-logger":             "b4fa1211-d6a7-4171-9351-d633d83bd06c",
@@ -55,35 +66,14 @@ UUID_TO_ROUTE: dict[str, str] = {v: k for k, v in AGENT_UUIDS.items()}
 
 FIRE_AND_FORGET: set[str] = {"01-logger", "14-harness-logger"}
 
-agent_to_room: dict[str, str] = {}
-room_to_agent: dict[str, str] = {}
-
 pending: dict[str, "asyncio.Future[str]"] = {}
 
 link: BandLink | None = None
 
 
-def _load_rooms_from_env() -> None:
-    for route, agent_uuid in AGENT_UUIDS.items():
-        env_key = "ROOM_" + route.upper().replace("-", "_")
-        room_id = os.getenv(env_key, "").strip()
-        if room_id:
-            agent_to_room[agent_uuid] = room_id
-            room_to_agent[room_id] = agent_uuid
-            logger.info("Room configured: %s -> %s", route, room_id)
-        else:
-            logger.warning("No room env var set for %s (expected %s)", route, env_key)
-
-
-async def _subscribe_all_rooms() -> None:
-    for room_id in room_to_agent:
-        await link.subscribe_room(room_id)
-        logger.info("Subscribed to room %s", room_id)
-
-
-async def _send_to_room(room_id: str, payload: str) -> None:
+async def _send_to_session(payload: str) -> None:
     await link.rest.agent_api_messages.create_agent_chat_message(
-        chat_id=room_id,
+        chat_id=SESSION_ROOM_ID,
         message=ChatMessageRequest(content=payload),
         request_options=DEFAULT_REQUEST_OPTIONS,
     )
@@ -98,19 +88,11 @@ async def handle_agent_request(request: web.Request) -> web.Response:
         logger.error("Unknown route: %s", route)
         return web.Response(status=404)
 
-    room_id = agent_to_room.get(agent_uuid)
-    if not room_id:
-        logger.error("No room for route %s", route)
-        return web.Response(
-            content_type="application/json",
-            text=json.dumps({
-                "agent": route, "status": "violation",
-                "certainty": "violation", "error_code": "NO_ROOM_CONFIGURED",
-            }),
-        )
+    mention = MENTION_TEMPLATE.format(uuid=agent_uuid)
+    payload = mention + body
 
     try:
-        await _send_to_room(room_id, body)
+        await _send_to_session(payload)
     except Exception as exc:
         logger.error("Send failed for %s: %s", route, exc)
         return web.Response(
@@ -147,19 +129,11 @@ async def handle_agent_request(request: web.Request) -> web.Response:
         pending.pop(route, None)
 
 
-def _dump_discovered_rooms() -> None:
-    for agent_uuid, room_id in agent_to_room.items():
-        route = UUID_TO_ROUTE.get(agent_uuid, agent_uuid)
-        env_key = "ROOM_" + route.upper().replace("-", "_")
-        logger.info("DISCOVERED ROOM  %s=%s", env_key, room_id)
-
-
 async def event_listener() -> None:
     async for event in link:
         if isinstance(event, RoomAddedEvent):
-            if event.room_id not in room_to_agent:
+            if event.room_id == SESSION_ROOM_ID:
                 await link.subscribe_room(event.room_id)
-                logger.info("Subscribed to new room via RoomAddedEvent: %s", event.room_id)
             continue
 
         if not isinstance(event, MessageEvent):
@@ -168,15 +142,6 @@ async def event_listener() -> None:
         sender_id = event.payload.sender_id
         if sender_id == COORDINATOR_AGENT_ID:
             continue
-
-        room_id = getattr(event, "room_id", None) or getattr(event.payload, "chat_id", None)
-
-        if sender_id and room_id and sender_id not in agent_to_room:
-            agent_to_room[sender_id] = room_id
-            room_to_agent[room_id] = sender_id
-            route = UUID_TO_ROUTE.get(sender_id, "unknown")
-            logger.info("Auto-discovered room for %s: %s", route, room_id)
-            _dump_discovered_rooms()
 
         route = UUID_TO_ROUTE.get(sender_id or "")
         if not route:
@@ -196,27 +161,21 @@ async def main() -> None:
         raise RuntimeError(
             "COORDINATOR_AGENT_ID and COORDINATOR_API_KEY must be set in .env"
         )
-
-    _load_rooms_from_env()
+    if not SESSION_ROOM_ID:
+        raise RuntimeError(
+            "SESSION_ROOM_ID must be set in .env — run setup_session.py first"
+        )
 
     link = BandLink(agent_id=COORDINATOR_AGENT_ID, api_key=COORDINATOR_API_KEY)
     await link.connect()
     await link.subscribe_agent_rooms(COORDINATOR_AGENT_ID)
-    await _subscribe_all_rooms()
+    await link.subscribe_room(SESSION_ROOM_ID)
+    logger.info("Subscribed to session room %s", SESSION_ROOM_ID)
 
     asyncio.create_task(event_listener())
 
-    async def handle_rooms(request: web.Request) -> web.Response:
-        lines = []
-        for agent_uuid, room_id in agent_to_room.items():
-            route = UUID_TO_ROUTE.get(agent_uuid, agent_uuid)
-            env_key = "ROOM_" + route.upper().replace("-", "_")
-            lines.append(f"{env_key}={room_id}")
-        return web.Response(text="\n".join(lines) or "No rooms discovered yet.")
-
     app = web.Application()
     app.router.add_post("/api/agent/{name}", handle_agent_request)
-    app.router.add_get("/rooms", handle_rooms)
     runner = web.AppRunner(app)
     await runner.setup()
     await web.TCPSite(runner, "0.0.0.0", 5000).start()
