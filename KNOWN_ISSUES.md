@@ -99,3 +99,53 @@ eight to five.
 
 Fix: the bridge unwraps fences and extracts the JSON object on the return path,
 so every consumer gets clean JSON. Status: SOLVED.
+
+---
+
+# Post-Hackathon — agent reasoning review (2026-06-18)
+
+A full reasoning review of all thirteen agents. The contract fixes it surfaced
+were applied to the schema during the review (uncertain and drifted added to the
+verdict enum, input_id added to the profile shape). The items below are the
+parked ones, in order of leverage. None block the demo.
+
+## P1. Verifier is not wired as a meta-judge (highest leverage)
+
+The verifier is designed to receive the array of specialist findings and judge
+whether they hold up, using convergence, evidence quality, and a false positive
+check. But in both run_chain.py and the C++ coordinator it runs inside the same
+parallel fan as the specialists and is handed the exchange context, not the
+findings. So it votes as a peer rather than verifying the panel. Its prompt is
+already strong; only the wiring is wrong.
+
+Fix: two-stage coordinator — fan specialists, collect findings, then send the
+findings to the verifier, then aggregate. Demo-story note: do not claim the
+verifier validates the panel; describe a parallel panel and frame two-stage
+verification as the next step.
+
+## P2. Verifier never sees uncertain findings
+
+Only violation and drifted findings reach the verifier, so it cannot promote a
+convergence of weak signals — three independent uncertain verdicts on the same
+issue, which is stronger than one violation. Depends on P1.
+
+Fix: once the verifier receives findings, forward uncertain ones too and let
+convergence promote them.
+
+## P3. Rule-loading framing tension (one sentence x four agents)
+
+The rule-loading agents (constraints, voice, antipatterns, quality) frame
+detection one way in the prompt while loading absolute reference rules that live
+outside that frame, so they can under-flag standing rules the human did not
+restate. Works today by luck of the model picking the right frame.
+
+Fix: one sentence in each, stating the reference rules are always active
+regardless of the prompt's framing.
+
+## P4. Polish
+
+Per-agent CONTRACT.md files are stale relative to prompts (nobody downstream
+builds from them; the schema is the real contract). Profilers and the rule
+agents would benefit from chain-of-thought scaffolding and few-shot examples,
+which improve consistency on subtle inputs at a token cost. Binary verdicts could
+carry a confidence float. The verifier has no CONTRACT.md. All low priority.
