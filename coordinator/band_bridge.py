@@ -45,6 +45,10 @@ COORDINATOR_AGENT_ID: str = os.getenv("COORDINATOR_AGENT_ID", "")
 COORDINATOR_API_KEY: str = os.getenv("COORDINATOR_API_KEY", "")
 SESSION_ROOM_ID: str = os.getenv("SESSION_ROOM_ID", "")
 
+# Port 5000 is held by the drift harness backend. The bridge listens here and
+# the C++ coordinator's BAND_HOST must point at the same port.
+BRIDGE_PORT: int = int(os.getenv("BRIDGE_PORT", "5055"))
+
 # How an agent is tagged inside a message. Band renders @[[uuid]] as the agent's
 # name. If the first live test shows the wrong agent responding, this is the one
 # line to change.
@@ -185,9 +189,9 @@ async def main() -> None:
     app.router.add_post("/api/agent/{name}", handle_agent_request)
     runner = web.AppRunner(app)
     await runner.setup()
-    await web.TCPSite(runner, "0.0.0.0", 5000).start()
+    await web.TCPSite(runner, "0.0.0.0", BRIDGE_PORT).start()
 
-    logger.info("Band bridge listening on port 5000")
+    logger.info("Band bridge listening on port %d", BRIDGE_PORT)
     await asyncio.Event().wait()
 
 

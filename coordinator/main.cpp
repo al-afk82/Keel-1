@@ -17,7 +17,7 @@
 bool SIMULATE_MISALIGNMENT = false;
 bool SIMULATE_VERIFIER_UNCERTAINTY = false;
 
-const std::string BAND_HOST = "http://127.0.0.1:5000";
+const std::string BAND_HOST = "http://127.0.0.1:5055";
 const std::string API_BASE = "/api/agent/";
 
 // Submits asynchronous telemetry packets to backend logging services.
