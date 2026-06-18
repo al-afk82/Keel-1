@@ -22,6 +22,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 
 from aiohttp import web
 from band.client.rest import (
@@ -75,6 +76,14 @@ AGENT_UUIDS: dict[str, str] = {
 }
 
 UUID_TO_ROUTE: dict[str, str] = {v: k for k, v in AGENT_UUIDS.items()}
+
+# Agents tag the coordinator back in their reply, so verdicts arrive with a
+# leading @[[uuid]] token. Strip it so the C++ coordinator gets clean JSON.
+_MENTION_RE = re.compile(r"^\s*(@\[\[[0-9a-fA-F-]+\]\]\s*)+")
+
+
+def strip_mentions(text: str) -> str:
+    return _MENTION_RE.sub("", text).strip()
 
 FIRE_AND_FORGET: set[str] = {"01-logger", "14-harness-logger"}
 
@@ -164,7 +173,7 @@ async def event_listener() -> None:
 
         fut = pending.get(route)
         if fut and not fut.done():
-            content = event.payload.content or "{}"
+            content = strip_mentions(event.payload.content or "{}")
             logger.info("Verdict received from %s", route)
             fut.set_result(content)
 
