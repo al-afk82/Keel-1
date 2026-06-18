@@ -24,6 +24,7 @@
     "description": "Returned by Agent 03 and Agent 04",
     "fields": {
       "agent": "string — human-profiler or engine-profiler",
+      "input_id": "string — the input_id carried from the incoming message",
       "status": "profiled",
       "id": "string — conversation-scoped identifier",
       "role": "string — role in this conversation",
