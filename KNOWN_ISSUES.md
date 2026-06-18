@@ -61,7 +61,9 @@ pm2 restarts it forever. This is why question-generator loops. A bad key is a
 crash loop, not a clean skip.
 
 Fix: catch the startup auth failure and exit cleanly, or back off, so pm2 does
-not tight loop. Status: OPEN.
+not tight loop. Status: MITIGATED — pm2 restart-delay of 5s applied and saved
+across all agents, so a bad key backs off instead of tight looping and cannot
+burn credits. A clean in-code exit on auth failure remains an optional follow-up.
 
 ## 7. Agents replay stale room backlog on startup (severity: low)
 
