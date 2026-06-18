@@ -33,10 +33,11 @@ TIMEOUT = 35
 
 PROFILERS = ["03-human-profiler", "04-engine-profiler"]
 
-# The verdict agents. 06-question-generator is intentionally absent until its
-# Band api key is relinked. Add it back to this list once it authenticates.
+# The verdict agents. All thirteen are live; question-generator rejoined the fan
+# once its Band key was relinked on 2026-06-18.
 VERDICT_AGENTS = [
     "05-alignment-classifier",
+    "06-question-generator",
     "07-gap-analyzer",
     "08-constraints-checker",
     "09-anti-patterns-checker",
@@ -46,7 +47,7 @@ VERDICT_AGENTS = [
     "13-verifier",
 ]
 
-SKIPPED = ["06-question-generator"]
+SKIPPED = []
 
 
 def call(route: str, payload: dict) -> tuple[str, dict]:
@@ -86,7 +87,8 @@ def main() -> None:
     print(f"input_id: {input_id}")
     print(f"human_input: {human_input}")
     print(f"engine_response: {engine_response}")
-    print(f"skipped (key not linked): {', '.join(SKIPPED)}")
+    if SKIPPED:
+        print(f"skipped (key not linked): {', '.join(SKIPPED)}")
     print()
 
     print("step 1  logging input ...")
