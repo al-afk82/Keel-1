@@ -38,12 +38,32 @@ Return this exact JSON. No other text. No explanation.
 Nothing else."""
 
 
-def derive_turn_status(findings: list) -> str:
-    statuses = {f.get("status") for f in findings if isinstance(f, dict)}
-    confirmed = {"violation", "drifted", "gap-found"}
-    if statuses & confirmed:
+# Agents do not emit one shared vocabulary. Map every "this is a problem" word
+# onto confirmed, and every hedge onto uncertain, so the turn status does not
+# silently undercount when an agent phrases a real finding its own way.
+CONFIRMED_WORDS = {
+    "violation", "drifted", "drift", "gap-found", "gap_found",
+    "misaligned", "mismatch", "fail", "failed", "flagged", "flag",
+}
+UNCERTAIN_WORDS = {"uncertain", "unsure", "partial", "maybe", "ambiguous"}
+
+
+def classify(status) -> str:
+    if not isinstance(status, str):
+        return "clean"
+    s = status.strip().lower()
+    if s in CONFIRMED_WORDS:
         return "confirmed"
-    if "uncertain" in statuses:
+    if s in UNCERTAIN_WORDS:
+        return "uncertain"
+    return "clean"
+
+
+def derive_turn_status(findings: list) -> str:
+    classes = {classify(f.get("status")) for f in findings if isinstance(f, dict)}
+    if "confirmed" in classes:
+        return "confirmed"
+    if "uncertain" in classes:
         return "uncertain"
     return "clean"
 
@@ -85,33 +105,39 @@ def make_graph(band_tools: list) -> object:
                         raw = raw[start:end + 1]
                 incoming = json.loads(raw) if isinstance(raw, str) else raw
 
-                findings = incoming.get("findings", [])
-                turn_status = derive_turn_status(findings)
+                # Only the aggregate message carries findings. The graph's second
+                # pass sees the agent's own logged reply, which has none — skip it
+                # so we do not write a spurious empty record per turn.
+                if not isinstance(incoming, dict) or "findings" not in incoming:
+                    logger.info("No findings in message, skipping harness write.")
+                else:
+                    findings = incoming.get("findings", [])
+                    turn_status = derive_turn_status(findings)
 
-                confirmed = [
-                    f for f in findings
-                    if f.get("status") in {"violation", "drifted", "gap-found"}
-                ]
-                uncertain = [
-                    f for f in findings
-                    if f.get("status") == "uncertain"
-                ]
+                    confirmed = [
+                        f for f in findings
+                        if classify(f.get("status")) == "confirmed"
+                    ]
+                    uncertain = [
+                        f for f in findings
+                        if classify(f.get("status")) == "uncertain"
+                    ]
 
-                record = {
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "turn_status": turn_status,
-                    "payload": incoming.get("payload", {}),
-                    "confirmed_findings": confirmed,
-                    "uncertain_findings": uncertain,
-                }
+                    record = {
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "turn_status": turn_status,
+                        "payload": incoming.get("payload", {}),
+                        "confirmed_findings": confirmed,
+                        "uncertain_findings": uncertain,
+                    }
 
-                write_to_harness(record)
-                logger.info(
-                    "Logged turn — status: %s, confirmed: %d, uncertain: %d",
-                    turn_status,
-                    len(confirmed),
-                    len(uncertain),
-                )
+                    write_to_harness(record)
+                    logger.info(
+                        "Logged turn — status: %s, confirmed: %d, uncertain: %d",
+                        turn_status,
+                        len(confirmed),
+                        len(uncertain),
+                    )
             except Exception as e:
                 logger.warning("Could not parse incoming payload: %s", e)
                 write_to_harness({"raw": str(last), "parse_error": str(e)})

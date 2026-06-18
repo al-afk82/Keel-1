@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import re
+from collections import deque
 
 from aiohttp import web
 from band.client.rest import (
@@ -87,7 +88,10 @@ def strip_mentions(text: str) -> str:
 
 FIRE_AND_FORGET: set[str] = {"01-logger", "14-harness-logger"}
 
-pending: dict[str, "asyncio.Future[str]"] = {}
+# One queue of waiting futures per route. A queue, not a single slot, so two
+# concurrent calls to the same agent do not overwrite each other — replies match
+# the oldest waiting caller first.
+pending: dict[str, "deque[asyncio.Future[str]]"] = {}
 
 link: BandLink | None = None
 
@@ -135,7 +139,7 @@ async def handle_agent_request(request: web.Request) -> web.Response:
 
     loop = asyncio.get_event_loop()
     fut: asyncio.Future[str] = loop.create_future()
-    pending[route] = fut
+    pending.setdefault(route, deque()).append(fut)
 
     try:
         result = await asyncio.wait_for(fut, timeout=REPLY_TIMEOUT)
@@ -150,7 +154,9 @@ async def handle_agent_request(request: web.Request) -> web.Response:
             }),
         )
     finally:
-        pending.pop(route, None)
+        dq = pending.get(route)
+        if dq and fut in dq:
+            dq.remove(fut)
 
 
 async def event_listener() -> None:
@@ -171,11 +177,14 @@ async def event_listener() -> None:
         if not route:
             continue
 
-        fut = pending.get(route)
-        if fut and not fut.done():
-            content = strip_mentions(event.payload.content or "{}")
-            logger.info("Verdict received from %s", route)
-            fut.set_result(content)
+        dq = pending.get(route)
+        if dq:
+            for fut in list(dq):
+                if not fut.done():
+                    content = strip_mentions(event.payload.content or "{}")
+                    logger.info("Verdict received from %s", route)
+                    fut.set_result(content)
+                    break
 
 
 async def main() -> None:
