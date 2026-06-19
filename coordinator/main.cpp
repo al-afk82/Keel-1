@@ -209,6 +209,11 @@ void execute_drift_coordinator(const std::string &human_input,
   nlohmann::json context = nlohmann::json(base);
   context["human_profile"] = nlohmann::json(human_prof);
   context["engine_profile"] = nlohmann::json(engine_prof);
+  context["human_msg"] = human_input;
+  context["ai_output"] = engine_response;
+  context["thinking_chain"] = engine_response;
+  context["human_scope"] = human_prof.scope;
+  context["engine_scope"] = engine_prof.scope;
   std::string context_json = context.dump();
 
   // step 3: fire off all specialists and the verifier at once
