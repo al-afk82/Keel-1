@@ -966,12 +966,13 @@
                 return;
             }
             entries.forEach(entry => {
-                const status = (entry.turn_status || 'clean').toLowerCase();
-                const time = entry.timestamp ? relativeTime(entry.timestamp) : '';
-                const input = (entry.payload && entry.payload.human_input) || '';
+                const rec = entry.data || entry;
+                const status = (rec.turn_status || 'clean').toLowerCase();
+                const time = (entry.timestamp || rec.timestamp) ? relativeTime(entry.timestamp || rec.timestamp) : '';
+                const input = (rec.payload && rec.payload.human_input) || '';
                 const preview = input.slice(0, 60) + (input.length > 60 ? '...' : '');
-                const confirmedCount = (entry.confirmed_findings || []).length;
-                const uncertainCount = (entry.uncertain_findings || []).length;
+                const confirmedCount = (rec.confirmed_findings || []).length;
+                const uncertainCount = (rec.uncertain_findings || []).length;
                 let findingsSummary = '';
                 if (confirmedCount) findingsSummary += `${confirmedCount} confirmed`;
                 if (uncertainCount) findingsSummary += (findingsSummary ? ', ' : '') + `${uncertainCount} uncertain`;
