@@ -90,7 +90,7 @@ def make_graph(band_tools: list) -> object:
         model="claude-haiku-4-5-20251001",
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
-    llm_with_tools = llm.bind_tools(send_tools, tool_choice={"type": "function", "function": {"name": "band_send_message"}})
+    llm_with_tools = llm.bind_tools(send_tools, tool_choice={"type": "tool", "name": "band_send_message"})
 
     def call_model(state: MessagesState) -> dict:
         last = state["messages"][-1] if state["messages"] else None
