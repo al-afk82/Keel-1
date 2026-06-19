@@ -44,12 +44,13 @@ Be specific. Nothing else."""
 
 
 def make_graph(band_tools: list) -> object:
+    send_tools = [t for t in band_tools if getattr(t, "name", None) == "band_send_message"]
     llm = ChatOpenAI(
         model="deepseek-chat",
         api_key=os.getenv("DEEPSEEK_API_KEY"),
         base_url="https://api.deepseek.com",
     )
-    llm_with_tools = llm.bind_tools(band_tools, tool_choice="required")
+    llm_with_tools = llm.bind_tools(send_tools, tool_choice={"type": "function", "function": {"name": "band_send_message"}})
 
     def call_model(state: MessagesState) -> dict:
         try:

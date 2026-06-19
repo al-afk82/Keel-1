@@ -44,11 +44,12 @@ Generate a fresh UUID4 for input_id. Use the timestamp exactly as written above.
 
 
 def make_graph(band_tools: list) -> object:
+    send_tools = [t for t in band_tools if getattr(t, "name", None) == "band_send_message"]
     llm = ChatOpenAI(
         model="claude-haiku-4-5-20251001",
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
-    llm_with_tools = llm.bind_tools(band_tools, tool_choice="required")
+    llm_with_tools = llm.bind_tools(send_tools, tool_choice={"type": "function", "function": {"name": "band_send_message"}})
 
     def call_model(state: MessagesState) -> dict:
         try:
