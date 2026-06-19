@@ -80,7 +80,7 @@ def make_graph(band_tools: list) -> object:
         api_key=os.getenv("DEEPSEEK_API_KEY"),
         base_url="https://api.deepseek.com",
     )
-    llm_with_tools = llm.bind_tools(band_tools)
+    llm_with_tools = llm.bind_tools(band_tools, tool_choice="required")
 
     def call_model(state: MessagesState) -> dict:
         try:
@@ -105,7 +105,7 @@ def make_graph(band_tools: list) -> object:
     graph.add_node("tools", ToolNode(band_tools))
     graph.set_entry_point("agent")
     graph.add_conditional_edges("agent", should_continue, ["tools", END])
-    graph.add_edge("tools", "agent")
+    graph.add_edge("tools", END)
 
     return graph.compile(checkpointer=InMemorySaver())
 

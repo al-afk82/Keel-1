@@ -89,7 +89,7 @@ def make_graph(band_tools: list) -> object:
         model="claude-haiku-4-5-20251001",
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
-    llm_with_tools = llm.bind_tools(band_tools)
+    llm_with_tools = llm.bind_tools(band_tools, tool_choice="required")
 
     def call_model(state: MessagesState) -> dict:
         last = state["messages"][-1] if state["messages"] else None
@@ -165,7 +165,7 @@ def make_graph(band_tools: list) -> object:
     graph.add_node("tools", ToolNode(band_tools))
     graph.set_entry_point("agent")
     graph.add_conditional_edges("agent", should_continue, ["tools", END])
-    graph.add_edge("tools", "agent")
+    graph.add_edge("tools", END)
 
     return graph.compile(checkpointer=InMemorySaver())
 
