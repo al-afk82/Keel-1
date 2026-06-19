@@ -129,15 +129,15 @@
         #theme-toggle:hover { background-color: var(--hover-color); }
         #theme-toggle i { color: var(--primary-color); font-size: 1.1rem; }
 
-        .sidebar-content { flex: 1; padding: 1rem 0; overflow-y: auto; }
+        .sidebar-content { padding: 0.5rem 0; }
 
         #history-list { list-style: none; }
 
         #history-list li {
-            padding: 0.75rem 1.5rem;
+            padding: 0.5rem 1.5rem;
             cursor: pointer;
             border-left: 3px solid transparent;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
         }
 
         #history-list li:hover { background-color: var(--hover-color); }
@@ -154,6 +154,20 @@
             font-style: italic;
             text-align: center;
             padding: 1rem;
+        }
+
+        .harness-log-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .harness-log-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 0.5rem;
         }
 
         .sidebar-section-title {
@@ -173,26 +187,54 @@
         }
 
         .harness-log-entry {
-            padding: 0.5rem 1.5rem;
+            padding: 0.55rem 1.25rem 0.55rem 1rem;
             font-size: 0.8rem;
             border-left: 3px solid transparent;
             cursor: default;
+            border-bottom: 1px solid var(--border-color);
         }
 
+        .harness-log-entry:last-child { border-bottom: none; }
         .harness-log-entry.confirmed { border-left-color: var(--confirmed-color); }
         .harness-log-entry.uncertain { border-left-color: var(--uncertain-color); }
         .harness-log-entry.clean { border-left-color: var(--clean-color); }
 
+        .harness-log-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.2rem;
+        }
+
         .harness-log-time {
             color: var(--text-color);
             opacity: 0.45;
-            font-size: 0.72rem;
-            display: block;
-            margin-bottom: 0.1rem;
+            font-size: 0.7rem;
         }
 
-        .harness-log-text {
-            opacity: 0.8;
+        .harness-log-badge {
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+        }
+
+        .badge-confirmed { background-color: rgba(231, 76, 60, 0.2); color: var(--confirmed-color); }
+        .badge-uncertain { background-color: rgba(243, 156, 18, 0.2); color: var(--uncertain-color); }
+        .badge-clean { background-color: rgba(39, 174, 96, 0.2); color: var(--clean-color); }
+
+        .harness-log-input {
+            opacity: 0.75;
+            line-height: 1.3;
+            word-break: break-word;
+        }
+
+        .harness-log-findings {
+            font-size: 0.7rem;
+            opacity: 0.5;
+            margin-top: 0.15rem;
         }
 
         .spend-badge {
@@ -602,10 +644,15 @@
             <li class="no-conversations">No analyses yet</li>
         </ul>
     </div>
-    <div class="sidebar-section-title">Harness Log</div>
-    <ul id="harness-log-list" class="harness-log-list">
-        <li class="no-conversations">Fetching...</li>
-    </ul>
+
+    <div class="harness-log-section">
+        <div class="sidebar-section-title">Harness Log</div>
+        <div class="harness-log-scroll">
+            <ul id="harness-log-list" class="harness-log-list">
+                <li class="no-conversations">Fetching...</li>
+            </ul>
+        </div>
+    </div>
 
     <div class="sidebar-footer">
         <button id="theme-toggle" aria-label="Toggle dark/light theme">
@@ -911,7 +958,7 @@
             const resp = await fetch(`${HARNESS_URL}/read`, { headers: harnessHeaders() });
             if (!resp.ok) return;
             const data = await resp.json();
-            const entries = (data.data || []).slice().reverse().slice(0, 12);
+            const entries = (data.data || []).slice().reverse();
             const list = document.getElementById('harness-log-list');
             list.innerHTML = '';
             if (!entries.length) {
@@ -922,10 +969,23 @@
                 const status = (entry.turn_status || 'clean').toLowerCase();
                 const time = entry.timestamp ? relativeTime(entry.timestamp) : '';
                 const input = (entry.payload && entry.payload.human_input) || '';
-                const preview = input.slice(0, 38) + (input.length > 38 ? '...' : '');
+                const preview = input.slice(0, 60) + (input.length > 60 ? '...' : '');
+                const confirmedCount = (entry.confirmed_findings || []).length;
+                const uncertainCount = (entry.uncertain_findings || []).length;
+                let findingsSummary = '';
+                if (confirmedCount) findingsSummary += `${confirmedCount} confirmed`;
+                if (uncertainCount) findingsSummary += (findingsSummary ? ', ' : '') + `${uncertainCount} uncertain`;
+                if (!findingsSummary) findingsSummary = 'clean';
                 const li = document.createElement('li');
                 li.className = `harness-log-entry ${status}`;
-                li.innerHTML = `<span class="harness-log-time">${time}</span><span class="harness-log-text">${preview || status}</span>`;
+                li.innerHTML = `
+                    <div class="harness-log-meta">
+                        <span class="harness-log-time">${time}</span>
+                        <span class="harness-log-badge badge-${status}">${status}</span>
+                    </div>
+                    <div class="harness-log-input">${preview || 'No input recorded'}</div>
+                    <div class="harness-log-findings">${findingsSummary}</div>
+                `;
                 list.appendChild(li);
             });
         } catch (e) {}
