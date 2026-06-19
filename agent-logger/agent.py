@@ -6,7 +6,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import SystemMessage
 from langgraph.graph import StateGraph, MessagesState, END
 from langgraph.checkpoint.memory import InMemorySaver
@@ -45,7 +45,7 @@ Generate a fresh UUID4 for input_id. Use the timestamp exactly as written above.
 
 def make_graph(band_tools: list) -> object:
     send_tools = [t for t in band_tools if getattr(t, "name", None) == "band_send_message"]
-    llm = ChatOpenAI(
+    llm = ChatAnthropic(
         model="claude-haiku-4-5-20251001",
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )
