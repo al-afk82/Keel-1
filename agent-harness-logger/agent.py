@@ -10,6 +10,7 @@ import requests
 from band import Agent
 from band.adapters.langgraph import LangGraphAdapter
 from band.config import load_agent_config
+from band.runtime.types import SessionConfig
 from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -181,6 +182,7 @@ async def main():
 
     agent = Agent.create(
         adapter=adapter,
+        session_config=SessionConfig(enable_context_hydration=False),
         agent_id=agent_id,
         api_key=api_key,
     )
