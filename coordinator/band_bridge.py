@@ -146,8 +146,8 @@ async def handle_agent_request(request: web.Request) -> web.Response:
         return web.Response(
             content_type="application/json",
             text=json.dumps({
-                "agent": route, "status": "violation",
-                "certainty": "violation", "error_code": "SEND_FAILED",
+                "agent": route, "status": "error",
+                "error_code": "SEND_FAILED",
             }),
         )
 
@@ -169,8 +169,8 @@ async def handle_agent_request(request: web.Request) -> web.Response:
         return web.Response(
             content_type="application/json",
             text=json.dumps({
-                "agent": route, "status": "violation",
-                "certainty": "violation", "error_code": "BRIDGE_TIMEOUT",
+                "agent": route, "status": "error",
+                "error_code": "BRIDGE_TIMEOUT",
             }),
         )
     finally:
