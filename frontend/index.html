@@ -156,6 +156,56 @@
             padding: 1rem;
         }
 
+        .sidebar-section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--primary-color);
+            font-weight: 600;
+            padding: 0.75rem 1.5rem 0.25rem;
+            border-top: 1px solid var(--border-color);
+            margin-top: 0.5rem;
+        }
+
+        .harness-log-list {
+            list-style: none;
+            padding: 0 0 0.5rem;
+        }
+
+        .harness-log-entry {
+            padding: 0.5rem 1.5rem;
+            font-size: 0.8rem;
+            border-left: 3px solid transparent;
+            cursor: default;
+        }
+
+        .harness-log-entry.confirmed { border-left-color: var(--confirmed-color); }
+        .harness-log-entry.uncertain { border-left-color: var(--uncertain-color); }
+        .harness-log-entry.clean { border-left-color: var(--clean-color); }
+
+        .harness-log-time {
+            color: var(--text-color);
+            opacity: 0.45;
+            font-size: 0.72rem;
+            display: block;
+            margin-bottom: 0.1rem;
+        }
+
+        .harness-log-text {
+            opacity: 0.8;
+        }
+
+        .spend-badge {
+            font-size: 0.8rem;
+            color: var(--text-color);
+            opacity: 0.7;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .spend-badge i { color: var(--primary-color); }
+
         .overlay {
             position: fixed;
             top: 0; left: 0;
@@ -552,6 +602,11 @@
             <li class="no-conversations">No analyses yet</li>
         </ul>
     </div>
+    <div class="sidebar-section-title">Harness Log</div>
+    <ul id="harness-log-list" class="harness-log-list">
+        <li class="no-conversations">Fetching...</li>
+    </ul>
+
     <div class="sidebar-footer">
         <button id="theme-toggle" aria-label="Toggle dark/light theme">
             <i class="fas fa-moon"></i>
@@ -571,7 +626,12 @@
             <div class="nav-center">
                 <div class="logo">Drift</div>
             </div>
-            <div class="nav-right"></div>
+            <div class="nav-right">
+                <div class="spend-badge" id="spend-badge">
+                    <i class="fas fa-bolt"></i>
+                    <span id="spend-label">loading...</span>
+                </div>
+            </div>
         </nav>
     </header>
 
@@ -829,6 +889,69 @@
     window.addEventListener('resize', () => {
         isMobile = window.innerWidth <= 768;
     });
+
+    const HARNESS_URL = 'http://167.233.71.106:5000';
+    const HARNESS_SECRET = 'drift-harness-2026';
+
+    function harnessHeaders() {
+        return { 'x-secret': HARNESS_SECRET };
+    }
+
+    function relativeTime(isoStr) {
+        const diff = Date.now() - new Date(isoStr).getTime();
+        const s = Math.floor(diff / 1000);
+        if (s < 60) return `${s}s ago`;
+        const m = Math.floor(s / 60);
+        if (m < 60) return `${m}m ago`;
+        return `${Math.floor(m / 60)}h ago`;
+    }
+
+    async function refreshHarnessLog() {
+        try {
+            const resp = await fetch(`${HARNESS_URL}/read`, { headers: harnessHeaders() });
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const entries = (data.data || []).slice().reverse().slice(0, 12);
+            const list = document.getElementById('harness-log-list');
+            list.innerHTML = '';
+            if (!entries.length) {
+                list.innerHTML = '<li class="no-conversations">No entries yet</li>';
+                return;
+            }
+            entries.forEach(entry => {
+                const status = (entry.turn_status || 'clean').toLowerCase();
+                const time = entry.timestamp ? relativeTime(entry.timestamp) : '';
+                const input = (entry.payload && entry.payload.human_input) || '';
+                const preview = input.slice(0, 38) + (input.length > 38 ? '...' : '');
+                const li = document.createElement('li');
+                li.className = `harness-log-entry ${status}`;
+                li.innerHTML = `<span class="harness-log-time">${time}</span><span class="harness-log-text">${preview || status}</span>`;
+                list.appendChild(li);
+            });
+        } catch (e) {}
+    }
+
+    async function refreshSpend() {
+        try {
+            const resp = await fetch(`${HARNESS_URL}/usage_stats`, { headers: harnessHeaders() });
+            if (!resp.ok) return;
+            const data = await resp.json();
+            const stats = data.usage_stats || data;
+            let totalIn = 0, totalOut = 0;
+            Object.values(stats).forEach(a => {
+                totalIn += (a.total_input_tokens || 0);
+                totalOut += (a.total_output_tokens || 0);
+            });
+            const cost = ((totalIn / 1000000) * 3 + (totalOut / 1000000) * 15).toFixed(4);
+            const label = document.getElementById('spend-label');
+            if (label) label.textContent = `$${cost} (${(totalIn + totalOut).toLocaleString()} tokens)`;
+        } catch (e) {}
+    }
+
+    refreshHarnessLog();
+    refreshSpend();
+    setInterval(refreshHarnessLog, 10000);
+    setInterval(refreshSpend, 15000);
 </script>
 </body>
 </html>
