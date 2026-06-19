@@ -958,7 +958,7 @@
             const resp = await fetch(`${HARNESS_URL}/read`, { headers: harnessHeaders() });
             if (!resp.ok) return;
             const data = await resp.json();
-            const entries = (data.data || []).slice().reverse();
+            const entries = (Array.isArray(data) ? data : (data.data || [])).slice().reverse();
             const list = document.getElementById('harness-log-list');
             list.innerHTML = '';
             if (!entries.length) {
@@ -996,15 +996,12 @@
             const resp = await fetch(`${HARNESS_URL}/usage_stats`, { headers: harnessHeaders() });
             if (!resp.ok) return;
             const data = await resp.json();
-            const stats = data.usage_stats || data;
-            let totalIn = 0, totalOut = 0;
-            Object.values(stats).forEach(a => {
-                totalIn += (a.total_input_tokens || 0);
-                totalOut += (a.total_output_tokens || 0);
-            });
-            const cost = ((totalIn / 1000000) * 3 + (totalOut / 1000000) * 15).toFixed(4);
+            const allTime = data.all_time_cost;
+            const last24h = data.last_24h_cost;
             const label = document.getElementById('spend-label');
-            if (label) label.textContent = `$${cost} (${(totalIn + totalOut).toLocaleString()} tokens)`;
+            if (label && allTime !== undefined) {
+                label.textContent = `$${Number(allTime).toFixed(2)} total · $${Number(last24h).toFixed(2)} today`;
+            }
         } catch (e) {}
     }
 
