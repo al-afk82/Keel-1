@@ -427,20 +427,20 @@
         }
 
         .input-buttons button {
-            background: none;
+            background-color: var(--primary-color);
             border: none;
             cursor: pointer;
-            padding: 0.5rem;
+            padding: 0.6rem 0.75rem;
             margin-left: 0.5rem;
-            border-radius: 50%;
-            color: var(--primary-color);
+            border-radius: 8px;
+            color: #fff;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.25rem;
+            font-size: 1.1rem;
         }
 
-        .input-buttons button:hover { background-color: var(--hover-color); }
+        .input-buttons button:hover { background-color: var(--primary-hover); }
         .input-buttons button:disabled { opacity: 0.4; cursor: not-allowed; }
 
         /* Findings display */
@@ -662,7 +662,7 @@
 <div id="overlay" class="overlay"></div>
 
 <script>
-    const ANALYZE_URL = 'http://167.233.71.106:5000/analyze';
+    const ANALYZE_URL = '/api/analyze';
 
     const sidebar = document.getElementById('sidebar');
     const mainContainer = document.getElementById('main-container');
@@ -890,7 +890,7 @@
         isMobile = window.innerWidth <= 768;
     });
 
-    const HARNESS_URL = 'http://167.233.71.106:5000';
+    const HARNESS_URL = '/api';
     const HARNESS_SECRET = 'drift-harness-2026';
 
     function harnessHeaders() {
