@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langgraph.graph import StateGraph, MessagesState, END
 from langgraph.checkpoint.memory import InMemorySaver
@@ -42,9 +42,10 @@ Replace input with the exact message you received. Generate a fresh UUID4 for in
 
 
 def make_graph(band_tools: list) -> object:
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-6",
-        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    llm = ChatOpenAI(
+        model="deepseek-chat",
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        base_url="https://api.deepseek.com",
     )
     llm_with_tools = llm.bind_tools(band_tools)
 

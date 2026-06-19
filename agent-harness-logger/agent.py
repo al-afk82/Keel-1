@@ -17,7 +17,7 @@ from shared.usage import report_usage
 from shared.mentions import strip_mentions
 
 AGENT_NAME = "harness-logger"
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, MessagesState, StateGraph
@@ -84,7 +84,7 @@ def write_to_harness(data: dict) -> None:
 
 
 def make_graph(band_tools: list) -> object:
-    llm = ChatAnthropic(
+    llm = ChatOpenAI(
         model="claude-haiku-4-5-20251001",
         api_key=os.getenv("ANTHROPIC_API_KEY"),
     )

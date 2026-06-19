@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 from dotenv import load_dotenv
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langgraph.graph import StateGraph, MessagesState, END
 from langgraph.checkpoint.memory import InMemorySaver
@@ -38,9 +38,10 @@ Replace the thinking field with the exact content you received. Replace the time
 
 
 def make_graph(band_tools: list) -> object:
-    llm = ChatAnthropic(
-        model="claude-sonnet-4-6",
-        api_key=os.getenv("ANTHROPIC_API_KEY"),
+    llm = ChatOpenAI(
+        model="deepseek-chat",
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        base_url="https://api.deepseek.com",
     )
     llm_with_tools = llm.bind_tools(band_tools)
 
