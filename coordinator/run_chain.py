@@ -20,12 +20,17 @@ and forget, the bridge returns immediately.
 
 Usage:
   python3 run_chain.py "<human input>" "<engine response>"
+  python3 run_chain.py --json "<human input>" "<engine response>"
+
+With --json the human readable trace is suppressed and a single JSON object is
+printed to stdout: {input_id, turn_status, findings:[every agent]}. This is the
+shape the website consumes to show one verdict with a per agent drill down.
 """
 
 import json
 import sys
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 
@@ -49,7 +54,54 @@ VERDICT_AGENTS = [
 # Statuses that represent a real finding — passed to verifier for second-pass audit.
 PROBLEM_STATUSES = {"violation", "drifted", "misaligned", "uncertain", "gap-found"}
 
+# Vocabulary for rolling every agent's status up into one turn verdict. Mirrors
+# the harness logger so the website verdict and the stored record never disagree.
+CONFIRMED_WORDS = {
+    "violation", "drifted", "drift", "gap-found", "gap_found",
+    "misaligned", "mismatch", "fail", "failed", "flagged", "flag",
+}
+UNCERTAIN_WORDS = {"uncertain", "unsure", "partial", "maybe", "ambiguous"}
+
 SKIPPED = []
+
+# --json suppresses the human trace and emits one machine readable object.
+# --stream emits one event line per agent the moment it returns, then a final
+# done line, so the website can draw the pipeline live instead of all at once.
+JSON_MODE = "--json" in sys.argv
+STREAM_MODE = "--stream" in sys.argv
+ARGS = [a for a in sys.argv[1:] if a not in ("--json", "--stream")]
+
+
+def out(*a):
+    if not JSON_MODE and not STREAM_MODE:
+        print(*a)
+
+
+def emit(event: str, data) -> None:
+    # One JSON object per line, flushed immediately, so each agent surfaces on
+    # the page the instant it resolves rather than waiting for the whole chain.
+    if STREAM_MODE:
+        print(json.dumps({"event": event, "data": data}), flush=True)
+
+
+def classify(status) -> str:
+    if not isinstance(status, str):
+        return "clean"
+    s = status.strip().lower()
+    if s in CONFIRMED_WORDS:
+        return "confirmed"
+    if s in UNCERTAIN_WORDS:
+        return "uncertain"
+    return "clean"
+
+
+def derive_turn_status(findings: list) -> str:
+    classes = {classify(f.get("status")) for f in findings if isinstance(f, dict)}
+    if "confirmed" in classes:
+        return "confirmed"
+    if "uncertain" in classes:
+        return "uncertain"
+    return "clean"
 
 
 def call(route: str, payload: dict) -> tuple[str, dict]:
@@ -64,18 +116,24 @@ def call(route: str, payload: dict) -> tuple[str, dict]:
 
 
 def fan(routes: list[str], payload: dict) -> dict[str, dict]:
-    out: dict[str, dict] = {}
+    # Fan out, returning as each agent resolves rather than in submit order, so
+    # in stream mode the fastest agents surface first. emit() is a no-op unless
+    # streaming, so this is safe for the plain and json paths too.
+    out_map: dict[str, dict] = {}
     with ThreadPoolExecutor(max_workers=max(1, len(routes))) as pool:
-        for route, result in pool.map(lambda rt: call(rt, payload), routes):
-            out[route] = result
-    return out
+        futs = {pool.submit(call, rt, payload): rt for rt in routes}
+        for fut in as_completed(futs):
+            route, result = fut.result()
+            out_map[route] = result
+            emit("agent", result)
+    return out_map
 
 
 def main() -> None:
-    human_input = sys.argv[1] if len(sys.argv) > 1 else (
+    human_input = ARGS[0] if len(ARGS) > 0 else (
         "Summarise the lease agreement in two sentences."
     )
-    engine_response = sys.argv[2] if len(sys.argv) > 2 else (
+    engine_response = ARGS[1] if len(ARGS) > 1 else (
         "Here is a haiku about autumn leaves drifting gently to the ground."
     )
 
@@ -86,20 +144,20 @@ def main() -> None:
         "engine_response": engine_response,
     }
 
-    print(f"input_id: {input_id}")
-    print(f"human_input: {human_input}")
-    print(f"engine_response: {engine_response}")
+    out(f"input_id: {input_id}")
+    out(f"human_input: {human_input}")
+    out(f"engine_response: {engine_response}")
     if SKIPPED:
-        print(f"skipped (key not linked): {', '.join(SKIPPED)}")
-    print()
+        out(f"skipped (key not linked): {', '.join(SKIPPED)}")
+    out()
 
-    print("step 1  logging input ...")
+    out("step 1  logging input ...")
     call("01-logger", base)
 
-    print("step 2  profilers ...")
+    out("step 2  profilers ...")
     profiles = fan(PROFILERS, base)
     for route, res in profiles.items():
-        print(f"  {route}: {json.dumps(res)[:140]}")
+        out(f"  {route}: {json.dumps(res)[:140]}")
 
     # Build enriched context that matches the field names specialist prompts expect.
     # thinking_chain and ai_output point at the same value for now — in production
@@ -116,14 +174,14 @@ def main() -> None:
     context["human_profile"] = human_prof
     context["engine_profile"] = engine_prof
 
-    print("step 3  verdict agents ...")
+    out("step 3  verdict agents ...")
     verdicts = fan(VERDICT_AGENTS, context)
     findings = []
     for route, res in verdicts.items():
         findings.append(res)
-        print(f"  {route}: {json.dumps(res)[:140]}")
+        out(f"  {route}: {json.dumps(res)[:140]}")
 
-    print("step 3.5  verifier ...")
+    out("step 3.5  verifier ...")
     non_clean = [
         f for f in findings
         if isinstance(f, dict) and f.get("status", "").lower().strip() in PROBLEM_STATUSES
@@ -133,17 +191,34 @@ def main() -> None:
     else:
         verifier_result = {"agent": "verifier", "status": "clean", "rule": None, "excerpt": None, "severity": None}
     findings.append(verifier_result)
-    print(f"  13-verifier: {json.dumps(verifier_result)[:140]}")
+    emit("agent", verifier_result)
+    out(f"  13-verifier: {json.dumps(verifier_result)[:140]}")
 
-    print("step 4  aggregate to harness logger ...")
+    out("step 4  aggregate to harness logger ...")
     aggregate = {"payload": base, "findings": findings}
     call("14-harness-logger", aggregate)
 
     statuses = [f.get("status") for f in findings if isinstance(f, dict)]
-    print()
-    print(f"verdicts collected: {len(findings)}")
-    print(f"statuses: {statuses}")
-    print(f"input_id for harness lookup: {input_id}")
+    out()
+    out(f"verdicts collected: {len(findings)}")
+    out(f"statuses: {statuses}")
+    out(f"input_id for harness lookup: {input_id}")
+
+    # Every agent recorded — profilers included — so the page can show the full
+    # reasoning chain, not only the agents that flagged something.
+    all_agents = [human_prof, engine_prof] + findings
+    summary = {
+        "input_id": input_id,
+        "turn_status": derive_turn_status(findings),
+        "findings": all_agents,
+    }
+
+    if JSON_MODE:
+        print(json.dumps(summary))
+
+    # Closes the live stream — the page reads this to settle the final verdict
+    # once every agent row has filled in.
+    emit("done", {"input_id": input_id, "turn_status": summary["turn_status"], "count": len(all_agents)})
 
 
 if __name__ == "__main__":
