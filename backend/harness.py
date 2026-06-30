@@ -10,6 +10,28 @@ from typing import Any
 SECRET = "drift-harness-2026"
 DB = "/root/drift-harness/harness.db"
 
+# Band stripped: run the agents directly in process via the shared direct module,
+# no bridge, no Band session. The agent prompts live in the hackathon repo.
+import sys as _sys, os as _os
+_os.environ.setdefault("AGENTS_ROOT", "/root/hackathon-drift-agent")
+_sys.path.insert(0, "/root/hackathon-drift-agent/coordinator")
+from agents_direct import direct_call as _direct_call
+
+# Roll every agent status into one turn verdict and bucket the findings, the same
+# way the old Band harness logger did, so stored history is unchanged.
+_CONFIRMED_WORDS = {"violation", "drifted", "drift", "gap-found", "gap_found",
+                    "misaligned", "mismatch", "fail", "failed", "flagged", "flag"}
+_UNCERTAIN_WORDS = {"uncertain", "unsure", "partial", "maybe", "ambiguous"}
+
+
+def _classify(status) -> str:
+    s = (status or "").strip().lower() if isinstance(status, str) else ""
+    if s in _CONFIRMED_WORDS:
+        return "confirmed"
+    if s in _UNCERTAIN_WORDS:
+        return "uncertain"
+    return "clean"
+
 class StripApiPrefix:
     # Accept an optional /api prefix on every route, matching what Caddy
     # strips on the public domain, so /api/x and /x behave identically.
@@ -247,15 +269,32 @@ class AnalyzeRequest(BaseModel):
     engine_response: str = ""
 
 def bridge_call(route: str, payload: dict) -> tuple:
-    import requests as req
-    try:
-        r = req.post(f"{BRIDGE_LOCAL}/{route}", json=payload, timeout=BRIDGE_TIMEOUT)
-        try:
-            return route, r.json()
-        except ValueError:
-            return route, {"agent": route, "raw": r.text, "status": "error"}
-    except Exception as e:
-        return route, {"agent": route, "error": str(e), "status": "error"}
+    # Band stripped: this used to POST to the bridge; now it calls the agent
+    # directly in process. Same signature and return shape, so analyze is unchanged.
+    return _direct_call(route, payload)
+
+
+def _write_record(base: dict, findings: list) -> None:
+    # Replaces the Band harness logger. Builds the same record and writes it to
+    # the entries table directly so the dashboard history keeps populating.
+    classes = {_classify(f.get("status")) for f in findings if isinstance(f, dict)}
+    turn_status = "confirmed" if "confirmed" in classes else ("uncertain" if "uncertain" in classes else "clean")
+    confirmed = [f for f in findings if isinstance(f, dict) and _classify(f.get("status")) == "confirmed"]
+    uncertain = [f for f in findings if isinstance(f, dict) and _classify(f.get("status")) == "uncertain"]
+    record = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "turn_status": turn_status,
+        "payload": base,
+        "confirmed_findings": confirmed,
+        "uncertain_findings": uncertain,
+    }
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO entries (id, timestamp, data) VALUES (?, ?, ?)",
+        (str(uuid.uuid4()), record["timestamp"], json.dumps(record)),
+    )
+    conn.commit()
+    conn.close()
 
 @app.post("/analyze")
 def analyze(payload: AnalyzeRequest):
@@ -269,11 +308,6 @@ def analyze(payload: AnalyzeRequest):
         "human_input": payload.human_input,
         "engine_response": engine_response,
     }
-
-    try:
-        req.post(f"{BRIDGE_LOCAL}/01-logger", json=base, timeout=5)
-    except Exception:
-        pass
 
     profiles: dict = {}
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -289,9 +323,8 @@ def analyze(payload: AnalyzeRequest):
         for route, res in pool.map(lambda r: bridge_call(r, context), VERDICT_AGENTS):
             findings.append(res)
 
-    aggregate = {"payload": base, "findings": findings}
     try:
-        req.post(f"{BRIDGE_LOCAL}/14-harness-logger", json=aggregate, timeout=5)
+        _write_record(base, findings)
     except Exception:
         pass
 
